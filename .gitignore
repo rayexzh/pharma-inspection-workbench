@@ -1,0 +1,9 @@
+.DS_Store
+Thumbs.db
+node_modules/
+*.log
+exports/
+.env
+.env.*
+!.env.example
+.sites-runtime/

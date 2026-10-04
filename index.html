@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An open-source, fictional pharmaceutical quality case: track findings, corrective actions, evidence and internal review.">
+  <meta name="theme-color" content="#142b3b">
+  <title>Pharma Inspection Workbench</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="data/demo-data.js"></script>
+  <script defer src="data/demo-zh-CN.js"></script>
+  <script defer src="src/core.js"></script>
+  <script defer src="src/i18n.js"></script>
+  <script defer src="src/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n>Skip to workbench</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Workbench navigation">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">PI</span><span>Pharma Intelligence<span class="brand-sub" data-i18n>QUALITY WORKBENCH</span></span></a>
+      <div class="nav-label" data-i18n>WORKSPACE</div>
+      <nav id="navigation">
+        <button class="nav-item active" data-view="findings" aria-current="page"><span class="nav-symbol" aria-hidden="true">01</span><span data-i18n>Inspection findings</span></button>
+        <button class="nav-item" data-view="evidence"><span class="nav-symbol" aria-hidden="true">02</span><span data-i18n>Evidence library</span></button>
+        <button class="nav-item" data-view="sources"><span class="nav-symbol" aria-hidden="true">03</span><span data-i18n>Source register</span></button>
+        <button class="nav-item" data-view="case"><span class="nav-symbol" aria-hidden="true">04</span><span data-i18n>Case &amp; method</span></button>
+      </nav>
+      <div class="sidebar-case"><span class="nav-label" data-i18n>CURRENT CASE</span><strong id="case-name">Loading case</strong><span id="case-site"></span><span class="case-label" data-i18n>FICTIONAL TRAINING CASE</span></div>
+      <div class="sidebar-bottom"><span class="license-badge">MIT</span><span><span data-i18n>Open-source portfolio project</span><br><a id="project-docs" href="README.md" data-i18n>Project documentation</a></span></div>
+    </aside>
+    <div class="main-shell">
+      <header class="topbar"><span data-i18n>QUALITY SYSTEMS / INTERNAL REVIEW</span><div class="topbar-actions"><label class="language-control" for="language-switch"><span class="sr-only">Language / 语言</span><select id="language-switch" aria-label="Language / 语言"><option value="zh-CN">中文</option><option value="en">English</option></select></label><span id="storage-status">Local demo</span><button class="text-button" id="guide-button" data-i18n>Demo guide</button></div></header>
+      <main id="main" tabindex="-1">
+        <div class="page-heading"><div><p class="eyebrow" data-i18n>PHARMA INSPECTION WORKBENCH</p><h1 id="page-title">Inspection findings</h1><p id="page-subtitle">Connect each finding to an action, evidence and a reviewer.</p></div><div class="heading-actions"><button class="button" id="new-finding-button" data-i18n>New training finding</button><button class="button secondary" id="export-button" data-i18n>Export workspace</button><button class="button secondary" id="import-button" data-i18n>Import JSON</button><input id="import-file" type="file" accept="application/json,.json" hidden></div></div>
+        <div class="purpose-strip"><strong data-i18n>This workbench helps prepare and review a response to an inspection finding.</strong><span data-i18n>Read the issue → plan an action → link evidence → review → close.</span></div>
+        <div class="demo-notice"><strong data-i18n>Simulated case.</strong> <span data-i18n>All companies, people and records are fictional. Checks show workflow gaps; a qualified person must assess compliance.</span></div>
+        <div class="workspace-controls"><span id="case-id"></span><label for="reference-date"><span data-i18n>Review as of</span> <input id="reference-date" type="date" value="2026-10-04" required></label></div>
+        <section id="metrics" class="metrics" aria-label="Case summary"></section>
+        <section id="view-content" aria-label="Workbench"></section>
+        <footer class="page-footer"><span data-i18n>Internal evidence is retained for review. Provide completed-action evidence to an inspector when requested.</span><button id="reset-button" class="text-button" data-i18n>Reset simulated case</button></footer>
+      </main>
+    </div>
+  </div>
+  <dialog id="modal" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title"></h2><button id="close-modal" class="text-button" aria-label="Close dialog" data-i18n>Close</button></div><div id="modal-content"></div></dialog>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p class="noscript">请启用 JavaScript 使用本地工作台。/ Enable JavaScript to use this local workbench. 案例及来源说明在 docs 文件夹中。/ Case and source notes are available in docs.</p></noscript>
+</body>
+</html>

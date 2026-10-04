@@ -1,0 +1,193 @@
+{
+  "version": "0.2.0",
+  "recordedOn": "2026-10-04",
+  "node": {
+    "version": "24.19.0",
+    "passed": 25,
+    "failed": 0
+  },
+  "browser": {
+    "engine": "Headless Chrome 154",
+    "passed": 44,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "load initial simulated dataset",
+        "status": "passed"
+      },
+      {
+        "name": "search, severity and status filters",
+        "status": "passed"
+      },
+      {
+        "name": "approval blocked by workflow gaps",
+        "status": "passed"
+      },
+      {
+        "name": "closure blocked before effectiveness result",
+        "status": "passed"
+      },
+      {
+        "name": "edit, save and localStorage reload",
+        "status": "passed"
+      },
+      {
+        "name": "response draft editable and retained",
+        "status": "passed"
+      },
+      {
+        "name": "complete edit, review, close and reopen workflow",
+        "status": "passed"
+      },
+      {
+        "name": "evidence selections saved and superseded evidence blocks review",
+        "status": "passed"
+      },
+      {
+        "name": "JSON, CSV and Markdown downloads",
+        "status": "passed"
+      },
+      {
+        "name": "JSON import roundtrip",
+        "status": "passed"
+      },
+      {
+        "name": "malformed JSON rejected without replacing workspace",
+        "status": "passed"
+      },
+      {
+        "name": "oversized JSON rejected without replacing workspace",
+        "status": "passed"
+      },
+      {
+        "name": "imported markup rendered literally without script execution",
+        "status": "passed"
+      },
+      {
+        "name": "evidence and source navigation and readable record",
+        "status": "passed"
+      },
+      {
+        "name": "keyboard arrow navigation across detail tabs",
+        "status": "passed"
+      },
+      {
+        "name": "720x500 viewport for 200-percent desktop zoom equivalent",
+        "status": "passed"
+      },
+      {
+        "name": "desktop 1440x1000 layout and screenshot",
+        "status": "passed"
+      },
+      {
+        "name": "mobile 375x812 layout and interaction",
+        "status": "passed"
+      },
+      {
+        "name": "file protocol works directly without local server",
+        "status": "passed"
+      },
+      {
+        "name": "no browser console or runtime errors",
+        "status": "passed"
+      },
+      {
+        "name": "empty finding array import safely rejected",
+        "status": "passed"
+      },
+      {
+        "name": "language switch updates html lang without replacing canonical seed",
+        "status": "passed"
+      },
+      {
+        "name": "Chinese notices, finding, evidence and sources display localized seed",
+        "status": "passed"
+      },
+      {
+        "name": "Chinese search and filters survive language switch",
+        "status": "passed"
+      },
+      {
+        "name": "unchanged Chinese action-plan save keeps closed approval and history",
+        "status": "passed"
+      },
+      {
+        "name": "unsaved typed edits preserved across language roundtrip and saved literally",
+        "status": "passed"
+      },
+      {
+        "name": "unsaved evidence and source checkboxes survive language roundtrip",
+        "status": "passed"
+      },
+      {
+        "name": "language preference persists independently across reload",
+        "status": "passed"
+      },
+      {
+        "name": "imported custom text retained in both languages",
+        "status": "passed"
+      },
+      {
+        "name": "Chinese JSON export exact data and CSV/Markdown canonical English",
+        "status": "passed"
+      },
+      {
+        "name": "Chinese desktop screenshot 1440x1000",
+        "status": "passed"
+      },
+      {
+        "name": "zh-CN mobile all views and modal fit 375x812",
+        "status": "passed"
+      },
+      {
+        "name": "en mobile all views and modal fit 375x812",
+        "status": "passed"
+      },
+      {
+        "name": "updated English desktop screenshot and no language runtime errors",
+        "status": "passed"
+      },
+      {
+        "name": "saved workflow stages and next step reflect finding state in both languages",
+        "status": "passed"
+      },
+      {
+        "name": "next-step guidance focuses the missing field",
+        "status": "passed"
+      },
+      {
+        "name": "grouped gap dialog routes to evidence without changing saved data",
+        "status": "passed"
+      },
+      {
+        "name": "three-tab draft saves once and invalidates approval once",
+        "status": "passed"
+      },
+      {
+        "name": "guided effectiveness action retains unsaved plan text",
+        "status": "passed"
+      },
+      {
+        "name": "new finding required fields block empty creation",
+        "status": "passed"
+      },
+      {
+        "name": "new Chinese finding persists and is blocked from premature review",
+        "status": "passed"
+      },
+      {
+        "name": "new-finding dialogs fit mobile in both languages",
+        "status": "passed"
+      },
+      {
+        "name": "workflow additions have no runtime errors",
+        "status": "passed"
+      },
+      {
+        "name": "inline gap links and record reading do not submit unsaved drafts",
+        "status": "passed"
+      }
+    ]
+  },
+  "limits": "Software checks on fictional records, not GxP validation or evidence of regulatory acceptance. Remote GitHub CI has not run."
+}
