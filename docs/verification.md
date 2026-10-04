@@ -51,6 +51,10 @@ A development harness used Chrome DevTools Protocol with an isolated **Headless 
 
 The browser harness is a delivery-time check and is not included in GitHub Actions. The supplied workflow runs syntax checks and the 52 reproducible unit tests. Only the observed environment is covered; the viewport checks are not a complete zoom or accessibility audit.
 
+## Published source checks
+
+The [GitHub Actions run](https://github.com/rayexzh/pharma-inspection-workbench/actions/runs/37220210587) passed on **5 October 2026** (Shanghai date), using **Node.js 24.21.0**: syntax checks succeeded and **52 tests passed, 0 failed**. It checked source commit `1ce18512086c2d19b2fc0ecc090136b60ecaaebc`. This confirms reproducible software checks on the published version, not GxP validation.
+
 ## Visual references
 
 - [English desktop overview](screenshots/desktop.png)
