@@ -72,3 +72,11 @@ The initial screen now shows an actionable queue rather than opening the first f
 The four summary buttons open the corresponding finding filter. Review readiness counts saved records whose plan and references pass the core prerequisites and whose review is still pending. Evidence-gap counts include affected open findings only. The editor remains visible if a search excludes its selected finding, with an explicit notice, so filtering does not discard an unsaved draft.
 
 Evidence search and version filters support lookup. Explicit ID links show which findings cite each record and open their reference selections. The app does not infer document relevance from these links. Pure display helpers reuse the core checks and do not change approval, closure or stored data.
+
+## Writing support and recoverable drafts (version 0.4.0)
+
+Nine field-specific English/Chinese writing guides provide questions about ownership, commitments, investigation, scope, interim action, CAPA, effectiveness and the response. They help structure the learner's reasoning and do not generate, fill or evaluate case facts. Explicit form labels are separate from their help buttons.
+
+Uncommitted edits have a separate browser recovery envelope when storage is available. Reload offers Restore or Discard; recovery does not alter the saved finding, reviewer, history, queue or exports. Save uses the existing canonical transition and invalidates prior review once when appropriate. The envelope is strictly validated and compared with the case, selected finding and evidence/source snapshots. Its bounded fingerprint detects accidental staleness and is not an authenticated signature.
+
+Only one active finding draft is retained. Reverting edits to the original displayed value removes the draft delta. Unchanged checkbox selections preserve stored ID order. Drafts with changed base records are rejected. A failed canonical storage write retains the last valid recovery envelope, keeps session exports available and reports the storage limitation. A recovery copy is not a validated audit record or a guaranteed backup.

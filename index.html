@@ -12,6 +12,8 @@
   <script defer src="data/demo-zh-CN.js"></script>
   <script defer src="src/core.js"></script>
   <script defer src="src/workflow.js"></script>
+  <script defer src="src/drafts.js"></script>
+  <script defer src="src/guidance.js"></script>
   <script defer src="src/i18n.js"></script>
   <script defer src="src/app.js"></script>
 </head>
@@ -37,6 +39,7 @@
         <div class="page-heading"><div><p class="eyebrow" id="page-eyebrow" data-i18n>QUALITY WORKSPACE</p><h1 id="page-title">Work overview</h1><p id="page-subtitle">Review priorities, then work through one finding.</p></div><div class="heading-actions"><button class="button" id="new-finding-button" data-i18n>New training finding</button><button class="button secondary" id="export-button" data-i18n>Export workspace</button><button class="button secondary" id="import-button" data-i18n>Import JSON</button><input id="import-file" type="file" accept="application/json,.json" hidden></div></div>
         <div class="demo-notice"><strong data-i18n>Simulated case.</strong><span data-i18n>Fictional records. For learning, not a compliance decision.</span></div>
         <div class="workspace-controls"><span id="case-id"></span><label for="reference-date"><span data-i18n>Review as of</span> <input id="reference-date" type="date" value="2026-10-04" required></label></div>
+        <section id="draft-recovery" class="recovery-banner" aria-label="Draft recovery" hidden></section>
         <section id="metrics" class="metrics" aria-label="Case summary"></section>
         <section id="view-content" aria-label="Workbench"></section>
         <footer class="page-footer"><span data-i18n>Internal evidence is retained for review. Provide completed-action evidence to an inspector when requested.</span><button id="reset-button" class="text-button" data-i18n>Reset simulated case</button></footer>

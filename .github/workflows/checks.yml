@@ -21,6 +21,8 @@ jobs:
           node --check data/demo-zh-CN.js
           node --check src/core.js
           node --check src/workflow.js
+          node --check src/drafts.js
+          node --check src/guidance.js
           node --check src/i18n.js
           node --check src/app.js
       - name: Test workflow rules

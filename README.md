@@ -38,11 +38,13 @@ Start on the work overview, then open **F-001**: try closing it and inspect the 
 
 Then open the complete, closed **F-003**. Clarify one relevant action explanation and save. This invalidates approval and reopens the record. Inspect it, record a new demo review and close it again.
 
-## Features in version 0.3
+## Features in version 0.4
 
 - **Work overview:** an ordered queue with a useful next action for each open finding.
 - **Clickable counts:** open, overdue, ready for demo review, and findings with evidence gaps.
 - **Focused register:** quick filters, priority/deadline/ID sorting and search across the supplied English and Chinese text.
+- **Writing guides:** nine field-specific question cards help you distinguish evidence, unknowns, planned action and completed results. The guide never fills a field for you.
+- **Draft recovery:** when browser storage works, an uncommitted draft has a separate local recovery copy. After reload, choose Restore or Discard; it is never applied automatically.
 - **Compact editing:** next-step links, retained drafts across tabs, a desktop save bar and `Ctrl/Cmd+S` to save. Press `/` outside a text field to focus search in the register or evidence library.
 - **Evidence lookup:** search, version-status filters and links showing which findings cite each record.
 - **New training finding**, local saving, change history, JSON backup/import and CSV/Markdown internal reports with English labels.
@@ -53,7 +55,11 @@ The queue orders overdue work first, then work due on the review date, reference
 
 ![English finding editor](docs/screenshots/editor.png)
 
-Unsaved drafts may be lost when closing the browser. Different browsers and addresses have separate storage; export JSON before switching.
+[See the writing guide](docs/screenshots/guidance.png) · [See draft recovery](docs/screenshots/draft-recovery.png)
+
+A recovery copy is **not a saved finding**: it does not update counts, reviews, history or exports. Use **Save changes** to commit your edits. Restoring a draft also requires Save; discarding it keeps saved records intact. Editing an approved or closed finding resets its review only when you save a material change.
+
+One active finding draft is recoverable per browser address. Navigating to another finding still asks before discarding uncommitted edits. Changed base records or malformed recovery data are not restored. Recovery depends on browser storage; it is not a controlled backup, a shared draft or autosaving into the case. If storage fails, keep the tab open, save the session and export JSON. Different browsers and addresses have separate storage; JSON transfers saved records, without the recovery copy.
 
 Chinese is the first-use default; select English with the language switch. The preference is saved. Your own text stays as written. Text that matches the original demo can display a translation; the stored record stays unchanged. JSON preserves stored data exactly. Switching language does not change data or reviews.
 

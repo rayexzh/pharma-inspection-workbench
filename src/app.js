@@ -3,11 +3,14 @@
   'use strict';
   const Core = window.InspectionCore;
   const Workflow = window.InspectionWorkflow;
+  const Drafts = window.InspectionDrafts;
+  const Guidance = window.InspectionGuidance;
   const Demo = window.InspectionDemo;
   const I18n = window.InspectionI18n;
   const Zh = window.InspectionDemoZh;
   const STORAGE_KEY = 'pharma-inspection-workbench:v1';
   const LANGUAGE_KEY = 'pharma-inspection-workbench:language';
+  const DRAFT_KEY = 'pharma-inspection-workbench:draft:v1';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -28,7 +31,13 @@
   let toastTimer;
   let language = 'zh-CN';
   let draft = {};
-  let renderedFields = {};
+  let recoveryDraft = null;
+  let draftWriteTimer;
+  let draftStored = false;
+  let draftStorageError = false;
+  let draftUpdatedAt = '';
+  let draftFailureNotified = false;
+  let canonicalStored = true;
   try { if (localStorage.getItem(LANGUAGE_KEY) === 'en') language = 'en'; } catch { /* Session preference remains usable. */ }
   const staticText = $$('[data-i18n]').map(node => ({node,text:node.textContent}));
   const staticAria = $$('[aria-label]').map(node => ({node,text:node.getAttribute('aria-label')}));
@@ -54,15 +63,113 @@
   function captureDraft() {
     const form = $('#finding-form');
     if (!form) return;
+    const stored = currentFinding();
+    const displayed = project(stored,'findings');
     for (const name of fieldNames) {
       const control = form.elements.namedItem(name);
-      if (control && control.value !== renderedFields[name]) draft[name] = control.value;
+      if (!control) continue;
+      if (control.value === displayed[name]) delete draft[name];
+      else draft[name] = control.value;
     }
     if (tab === 'evidence') {
-      draft.evidenceIds = $$('input[name="evidenceIds"]:checked',form).map(item => item.value);
-      draft.sourceIds = $$('input[name="sourceIds"]:checked',form).map(item => item.value);
+      for (const name of ['evidenceIds','sourceIds']) {
+        const checked = $$(`input[name="${name}"]:checked`,form).map(item => item.value);
+        // Preserve stored reference order when a user has not changed the selection.
+        const ids = stored[name].filter(id => checked.includes(id)).concat(checked.filter(id => !stored[name].includes(id)));
+        if (JSON.stringify(ids) === JSON.stringify(stored[name])) delete draft[name];
+        else draft[name] = ids;
+      }
     }
+    dirty = Object.keys(draft).length > 0;
   }
+  function draftTime(value) {
+    return new Date(value).toLocaleString(language === 'zh-CN'?'zh-CN':'en-GB',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  }
+  function updateDraftStatus() {
+    const node = $('#draft-status');
+    if (node) {
+      node.hidden = !dirty;
+      node.dataset.state = draftStorageError?'unavailable':draftStored?'saved':'pending';
+      node.textContent = t(draftStorageError?'Draft stays in this tab; recovery is unavailable.':draftStored?'Local recovery copy saved. Changes are not committed.':'Saving a local recovery copy…');
+    }
+    if ($('#save-state')) $('#save-state').textContent = t(dirty?'Unsaved changes':'Saved');
+    if ($('#discard-draft')) $('#discard-draft').disabled = !dirty;
+    const note = $('.workflow-strip small');
+    if (note) note.textContent = t(dirty?'This workflow uses saved records; save your draft to update the checks.':'Demo reviews and closure depend on completeness, not verified regulatory acceptance.');
+  }
+  function renderRecovery() {
+    const banner = $('#draft-recovery');
+    banner.hidden = !recoveryDraft;
+    if (!recoveryDraft) { banner.innerHTML = ''; return; }
+    banner.innerHTML = `<div class="recovery-copy"><strong>${t('Uncommitted draft found')} · <span data-record-text>${escape(recoveryDraft.findingId)}</span></strong><p>${t('Restore it to continue editing, or discard it to use saved records.')} <time datetime="${escape(recoveryDraft.updatedAt)}">${escape(draftTime(recoveryDraft.updatedAt))}</time></p><small>${t('A recovery copy does not change reviews, workflow counts or exports.')}</small></div><div class="recovery-actions"><button type="button" class="button" id="restore-draft">${t('Restore draft')}</button><button type="button" class="button secondary" id="discard-recovery">${t('Discard draft')}</button></div>`;
+  }
+  function clearRecoveryCopy(force = false) {
+    clearTimeout(draftWriteTimer);
+    recoveryDraft = null; draftStored = false; draftUpdatedAt = ''; draftStorageError = false;
+    try { if (canonicalStored || force) localStorage.removeItem(DRAFT_KEY); }
+    catch { notify('The recovery copy could not be removed from browser storage.',true); }
+    renderRecovery();
+  }
+  function writeRecoveryCopy() {
+    clearTimeout(draftWriteTimer);
+    if (!dirty) { clearRecoveryCopy(); updateDraftStatus(); return; }
+    try {
+      // Keep the last valid recovery envelope if saved session records differ from browser storage.
+      if (!canonicalStored) throw new Error('The saved session is not persisted.');
+      const entry = Drafts.createDraft(dataset,selectedId,draft,{tab,language,updatedAt:new Date().toISOString()});
+      localStorage.setItem(DRAFT_KEY,JSON.stringify(entry));
+      draftStored = true; draftStorageError = false; draftUpdatedAt = entry.updatedAt;
+    } catch {
+      draftStored = false; draftStorageError = true;
+      if (!draftFailureNotified) { notify('Draft recovery is unavailable. Keep this tab open and save your changes.',true); draftFailureNotified = true; }
+    }
+    updateDraftStatus();
+  }
+  function scheduleRecoveryCopy() {
+    captureDraft(); draftStored = false; updateDraftStatus();
+    clearTimeout(draftWriteTimer);
+    if (!dirty) { clearRecoveryCopy(); return; }
+    draftWriteTimer = setTimeout(writeRecoveryCopy,150);
+  }
+  function loadRecoveryCopy() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const checked = Drafts.validateDraft(JSON.parse(raw),dataset);
+      if (!checked.valid) {
+        localStorage.removeItem(DRAFT_KEY);
+        notify(checked.reason === 'stale'?'An older draft no longer matches the saved records and was not applied.':'An invalid recovery copy was ignored.',true);
+        return;
+      }
+      recoveryDraft = checked.draft;
+    } catch { notify('The recovery copy could not be read. Saved records are displayed.',true); }
+  }
+  function requireRecoveryDecision() {
+    if (!recoveryDraft) return true;
+    notify('Restore or discard the recovered draft before editing.');
+    $('#restore-draft')?.focus(); $('#draft-recovery').scrollIntoView({block:'nearest'});
+    return false;
+  }
+  function restoreDraft() {
+    const checked = Drafts.validateDraft(recoveryDraft,dataset);
+    if (!checked.valid) { clearRecoveryCopy(); notify('An older draft no longer matches the saved records and was not applied.',true); return; }
+    selectedId = checked.draft.findingId; draft = Core.clone(checked.draft.patch); tab = checked.draft.tab;
+    dirty = true; draftStored = true; draftUpdatedAt = checked.draft.updatedAt; recoveryDraft = null;
+    filters = {search:'',status:'all',severity:'all',focus:'all',sort:'priority'}; view = 'findings';
+    render(); $('#detail-panel').scrollIntoView({block:'start'});
+    notify('Draft restored for editing. Save changes to commit it.');
+  }
+  function discardDraft() {
+    if (!dirty && !recoveryDraft) return;
+    modal('Discard this draft?',`<p class="modal-copy">${t('This removes the uncommitted edits and recovery copy. Saved findings and reviews stay as they are.')}</p><div class="modal-actions"><button type="button" class="button danger" id="confirm-discard-draft">${t('Discard draft')}</button><button type="button" class="button secondary" id="keep-draft">${t('Keep editing')}</button></div>`);
+    $('#keep-draft').addEventListener('click',() => $('#modal').close());
+    $('#confirm-discard-draft').addEventListener('click',() => {
+      const discardedPendingRecovery = !!recoveryDraft;
+      dirty = false; draft = {}; clearRecoveryCopy(discardedPendingRecovery); $('#modal').close(); render();
+      notify('Draft discarded. Saved records are unchanged.');
+    });
+  }
+
   function workflowState(finding) { return Workflow.classifyFinding(finding,dataset,referenceDate,Core); }
   function priorityBadge(state) { return `<span class="badge ${escape(state.priority)}">${escape(t(state.labelKey))}</span>`; }
   function workflowMarkup(finding) {
@@ -105,11 +212,14 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({dataset,referenceDate}));
       storageMode = 'Saved in this browser';
+      canonicalStored = true;
     } catch {
       storageMode = 'Session only';
+      canonicalStored = false;
       notify('Browser storage is unavailable or full. Export JSON to retain this session.', true);
     }
     $('#storage-status').textContent = t(storageMode);
+    return canonicalStored;
   }
 
   function currentFinding() { return dataset.findings.find(item => item.id === selectedId); }
@@ -119,9 +229,11 @@
     if (!window.confirm(t('Discard unsaved changes to this finding?'))) return false;
     dirty = false;
     draft = {};
+    clearRecoveryCopy();
     return true;
   }
   function requireSaved() {
+    if (!requireRecoveryDecision()) return false;
     if (!dirty) return true;
     notify('Save your changes before reviewing, closing or exporting.', true);
     return false;
@@ -187,11 +299,19 @@
     localize($('#view-content'));
   }
 
-  function inputField(name, label, value, type = 'text') {
-    return `<label class="field"><span>${label}</span><input name="${name}" id="field-${name}" type="${type}" value="${escape(value)}" ${name === 'owner'?'maxlength="120"':''}></label>`;
+  function fieldTitle(name,label) {
+    return `<div class="field-title"><label for="field-${name}">${escape(t(label))}</label><button type="button" class="text-button field-help" data-guidance="${name}" aria-label="${escape(t('Writing guide')+' · '+t(label))}">${t('Writing guide')}</button></div>`;
   }
-  function textarea(name, label, value, hint = '', rows = 3) {
-    return `<label class="field"><span>${label}</span>${hint?`<small>${hint}</small>`:''}<textarea name="${name}" id="field-${name}" rows="${rows}" maxlength="10000">${escape(value)}</textarea></label>`;
+  function inputField(name,label,value,type = 'text') {
+    return `<div class="field">${fieldTitle(name,label)}<input name="${name}" id="field-${name}" type="${type}" value="${escape(value)}" ${name === 'owner'?'maxlength="120"':''}></div>`;
+  }
+  function textarea(name,label,value,hint = '',rows = 3) {
+    return `<div class="field">${fieldTitle(name,label)}${hint?`<small id="hint-${name}">${t(hint)}</small>`:''}<textarea name="${name}" id="field-${name}" rows="${rows}" maxlength="10000" ${hint?`aria-describedby="hint-${name}"`:''}>${escape(value)}</textarea></div>`;
+  }
+  function showGuidance(name) {
+    const guide = Guidance.forField(name,language);
+    if (!guide) return;
+    modal(`${t('Writing guide')} · ${guide.title}`,`<div class="guidance-copy"><p>${escape(guide.purpose)}</p><h3>${t('Questions to work through')}</h3><ul class="guidance-prompts">${guide.prompts.map(prompt => `<li>${escape(prompt)}</li>`).join('')}</ul><div class="guidance-avoid"><strong>${t('Keep the distinction clear')}</strong><p>${escape(guide.avoid)}</p></div><p class="references-note">${t('These prompts help structure your own reasoning. They do not generate or verify case facts.')}</p></div>`);
   }
 
   function renderDetail() {
@@ -212,15 +332,11 @@
       const displayedReviewer = language === 'zh-CN' && review.reviewer === seedReviewer ? Zh.historyActors[review.reviewer] || review.reviewer : review.reviewer;
       body += `<div class="review-strip"><strong>${review.status === 'approved'?'Demo review recorded':'Awaiting demo review'}</strong>${review.status === 'approved'?` · <span data-record-text>${escape(displayedReviewer)}</span><br>${escape(review.reviewedAt)}`:'<br>Typed reviewer names are not authenticated signatures.'}</div><div class="form-divider"><p class="section-label">LOCAL CHANGE HISTORY</p><p class="references-note">Editable browser history for this demonstration; not a tamper-proof audit trail.</p><ol class="history-list" tabindex="-1">${finding.history.slice().reverse().map(record => I18n.history(record,Zh,language)).map(item => `<li data-record-text>${escape(item.action)}<span>${escape(item.actor)} · ${escape(item.timestamp)}</span></li>`).join('')}</ol></div>`;
     }
-    $('#detail-panel').innerHTML = `<div id="filter-context" class="draft-note" hidden></div><div class="detail-top"><div class="detail-identity"><span class="finding-id" data-record-text>${escape(finding.id)} · ${escape(finding.area)}</span>${badge(finding.status)}</div><h2 data-record-text>${escape(finding.title)}</h2><p class="finding-description" data-record-text>${escape(finding.description)}</p></div>${workflowMarkup(storedFinding)}<div class="tab-bar" role="tablist" aria-label="Finding details">${tabs.map(item => `<button type="button" class="tab${tab === item.id?' active':''}" id="tab-${item.id}" role="tab" aria-selected="${tab === item.id}" aria-controls="detail-body" tabindex="${tab === item.id?'0':'-1'}" data-tab="${item.id}">${item.label}</button>`).join('')}</div><form id="finding-form"><div class="detail-body" id="detail-body" role="tabpanel" aria-labelledby="tab-${tab}">${body}</div><div class="plan-footer"><button type="submit" id="save-finding" class="button">Save changes</button><span class="save-state" id="save-state">${t(dirty?'Unsaved changes':'Saved')}</span><div class="secondary-actions"><button type="button" class="button secondary" id="approve-finding" data-action="approve">Record review</button><button type="button" class="button secondary" id="close-finding" data-action="close" ${finding.status === 'closed'?'disabled':''}>Close finding</button></div></div></form>`;
+    $('#detail-panel').innerHTML = `<div id="filter-context" class="draft-note" hidden></div><div class="detail-top"><div class="detail-identity"><span class="finding-id" data-record-text>${escape(finding.id)} · ${escape(finding.area)}</span>${badge(finding.status)}</div><h2 data-record-text>${escape(finding.title)}</h2><p class="finding-description" data-record-text>${escape(finding.description)}</p></div>${workflowMarkup(storedFinding)}<div class="tab-bar" role="tablist" aria-label="Finding details">${tabs.map(item => `<button type="button" class="tab${tab === item.id?' active':''}" id="tab-${item.id}" role="tab" aria-selected="${tab === item.id}" aria-controls="detail-body" tabindex="${tab === item.id?'0':'-1'}" data-tab="${item.id}">${item.label}</button>`).join('')}</div><form id="finding-form"><div class="detail-body" id="detail-body" role="tabpanel" aria-labelledby="tab-${tab}">${body}</div><div class="plan-footer"><button type="submit" id="save-finding" class="button">Save changes</button><button type="button" class="text-button" id="discard-draft" data-action="discard-draft">Discard draft</button><span class="save-state" id="save-state">${t(dirty?'Unsaved changes':'Saved')}</span><div class="secondary-actions"><button type="button" class="button secondary" id="approve-finding" data-action="approve">Record review</button><button type="button" class="button secondary" id="close-finding" data-action="close" ${finding.status === 'closed'?'disabled':''}>Close finding</button></div></div><p class="draft-status" id="draft-status" role="status" aria-live="polite" hidden></p></form>`;
     $('#finding-form').addEventListener('submit', event => { event.preventDefault(); save(); });
     localize($('#detail-panel'));
     renderList();
-    renderedFields = {};
-    for (const name of fieldNames) {
-      const control = $('#finding-form').elements.namedItem(name);
-      if (control) renderedFields[name] = control.value;
-    }
+    updateDraftStatus();
   }
 
   function clearFilters() {
@@ -278,7 +394,7 @@
     $('#page-title').textContent = t(headings[view][0]);
     $('#page-subtitle').textContent = t(headings[view][1]);
     $$('.nav-item').forEach(item => { item.classList.toggle('active',item.dataset.view === view); if (item.dataset.view === view) item.setAttribute('aria-current','page'); else item.removeAttribute('aria-current'); });
-    renderMetrics();
+    renderMetrics(); renderRecovery();
     if (view === 'overview') renderOverview();
     else if (view === 'findings') renderFindings();
     else if (view === 'evidence') renderEvidence();
@@ -296,13 +412,15 @@
     const patch = {...draft};
     try {
       const previous = currentFinding();
+      if (dirty) writeRecoveryCopy();
       dataset = Core.saveFinding(dataset,selectedId,patch,'Demo editor',new Date().toISOString());
       dirty = false; draft = {};
-      persist();
+      const savedInBrowser = persist();
+      if (savedInBrowser) clearRecoveryCopy();
       renderMetrics(); renderDetail();
       const restored = focusId && document.getElementById(focusId);
       if (restored) { restored.focus({preventScroll:true}); if (selection && typeof restored.setSelectionRange === 'function') restored.setSelectionRange(...selection); }
-      notify(previous.review.status === 'approved' && currentFinding().review.status !== 'approved' ? 'Changes saved. The previous review is invalidated; a new review is required.' : 'Finding saved in this browser.');
+      notify(!savedInBrowser?'Changes are saved in this tab only. Export JSON before closing.':previous.review.status === 'approved' && currentFinding().review.status !== 'approved' ? 'Changes saved. The previous review is invalidated; a new review is required.' : 'Finding saved in this browser.',!savedInBrowser);
     } catch (error) { notify(error.message,true); }
   }
 
@@ -322,7 +440,9 @@
 
   function goToTab(nextTab, selector) {
     if (dirty) captureDraft();
-    tab = nextTab; renderDetail();
+    tab = nextTab;
+    if (dirty) writeRecoveryCopy();
+    renderDetail();
     const control = $(selector || `#tab-${tab}`);
     if (control) { control.focus(); control.scrollIntoView({block:'center'}); }
   }
@@ -410,7 +530,7 @@
       $('#confirm-import').addEventListener('click',() => {
         dataset = Core.clone(parsed); referenceDate = parsed.referenceDate; selectedId = parsed.findings[0].id;
         filters = {search:'',status:'all',severity:'all',focus:'all',sort:'priority'}; dirty = false; draft = {}; tab = 'plan'; view = 'findings';
-        persist(); render(); $('#modal').close(); notify('Workspace imported. Verify imported records before using them.');
+        clearRecoveryCopy(true); persist(); render(); $('#modal').close(); notify('Workspace imported. Verify imported records before using them.');
       });
     } catch (error) { notify(error.message,true); }
     finally { $('#import-file').value = ''; }
@@ -422,12 +542,12 @@
     $('#confirm-reset').addEventListener('click',() => {
       dataset = Demo.createDataset(); referenceDate = dataset.referenceDate; selectedId = dataset.findings[0].id;
       dirty = false; draft = {}; tab = 'plan'; view = 'overview'; evidenceFilters = {search:'',status:'all'}; filters = {search:'',status:'all',severity:'all',focus:'all',sort:'priority'};
-      persist(); render(); $('#modal').close(); notify('Original simulated case restored.');
+      clearRecoveryCopy(true); persist(); render(); $('#modal').close(); notify('Original simulated case restored.');
     });
   }
 
   $('#language-switch').addEventListener('change',event => {
-    if (dirty) captureDraft();
+    if (dirty) { captureDraft(); writeRecoveryCopy(); }
     language = event.target.value === 'en' ? 'en' : 'zh-CN';
     $('#toast').hidden = true;
     render();
@@ -436,11 +556,19 @@
 
   $('#navigation').addEventListener('click',event => {
     const button = event.target.closest('[data-view]');
-    if (!button || !canNavigate()) return;
+    if (button?.dataset.view === view) return;
+    if (!button || button.dataset.view === 'findings' && !requireRecoveryDecision() || !canNavigate()) return;
     view = button.dataset.view; render();
   });
   function openFinding(id,code,evidenceId) {
-    if (!dataset.findings.some(item => item.id === id) || !canNavigate()) return;
+    if (!requireRecoveryDecision() || !dataset.findings.some(item => item.id === id)) return;
+    if (view === 'findings' && id === selectedId) {
+      if (evidenceId) goToTab('evidence',`#evidence-${CSS.escape(evidenceId)}`);
+      else if (code) resolveIssue(code);
+      else goToTab('plan');
+      return;
+    }
+    if (!canNavigate()) return;
     selectedId = id; tab = 'plan';
     if (view !== 'findings') { filters = {search:'',status:'all',severity:'all',focus:'all',sort:'priority'}; view = 'findings'; render(); }
     else { renderDetail(); }
@@ -450,7 +578,7 @@
   }
   $('#metrics').addEventListener('click',event => {
     const button = event.target.closest('[data-metric-focus]');
-    if (!button) return;
+    if (!button || !requireRecoveryDecision()) return;
     if (view !== 'findings' && !canNavigate()) return;
     filters = {search:'',status:'all',severity:'all',focus:button.dataset.metricFocus,sort:'priority'};
     if (!dirty) selectedId = filteredFindings()[0]?.id || selectedId;
@@ -459,8 +587,10 @@
     $('#finding-list').scrollIntoView({block:'nearest'});
   });
   $('#view-content').addEventListener('click',event => {
+    const help = event.target.closest('[data-guidance]');
+    if (help) { showGuidance(help.dataset.guidance); return; }
     const openView = event.target.closest('[data-open-view]');
-    if (openView) { if (canNavigate()) { view = openView.dataset.openView; render(); } return; }
+    if (openView) { if ((openView.dataset.openView !== 'findings' || requireRecoveryDecision()) && canNavigate()) { view = openView.dataset.openView; render(); } return; }
     const focus = event.target.closest('[data-focus]');
     if (focus) { filters.focus = focus.dataset.focus; renderList(); renderMetrics(); return; }
     if (event.target.closest('[data-clear-filters]')) { clearFilters(); return; }
@@ -474,6 +604,7 @@
     if (tabButton) { goToTab(tabButton.dataset.tab); return; }
     const button = event.target.closest('[data-action]');
     if (!button) return;
+    if (button.dataset.action === 'discard-draft') discardDraft();
     if (button.dataset.action === 'approve') approve();
     if (button.dataset.action === 'close') closeFinding();
     if (button.dataset.action === 'all-checks') showChecks();
@@ -493,10 +624,9 @@
   });
   function markDirty(event) {
     if (!event.target.closest('#finding-form') || !['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName)) return;
-    dirty = true; $('#save-state').textContent = t('Unsaved changes');
-    const note = $('.workflow-strip small');
-    if (note) note.textContent = t('This workflow uses saved records; save your draft to update the checks.');
+    scheduleRecoveryCopy();
   }
+
   $('#view-content').addEventListener('input',markDirty);
   $('#view-content').addEventListener('change',markDirty);
   $('#reference-date').addEventListener('change',event => {
@@ -533,7 +663,12 @@
       if (search) { event.preventDefault(); search.focus(); }
     }
   });
-  window.addEventListener('beforeunload',event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
-  window.InspectionWorkbench = Object.freeze({getState:() => Core.clone({dataset,referenceDate,selectedId,view,tab,dirty,language,filters,evidenceFilters})});
-  restore(); render();
+  $('#draft-recovery').addEventListener('click',event => {
+    if (event.target.closest('#restore-draft')) restoreDraft();
+    if (event.target.closest('#discard-recovery')) discardDraft();
+  });
+  window.addEventListener('beforeunload',event => { if (dirty) { captureDraft(); writeRecoveryCopy(); event.preventDefault(); event.returnValue = ''; } });
+  window.addEventListener('pagehide',() => { if (dirty) { captureDraft(); writeRecoveryCopy(); } });
+  window.InspectionWorkbench = Object.freeze({getState:() => Core.clone({dataset,referenceDate,selectedId,view,tab,dirty,language,filters,evidenceFilters,recoveryAvailable:!!recoveryDraft,draftStored,draftStorageError})});
+  restore(); loadRecoveryCopy(); render();
 })();
