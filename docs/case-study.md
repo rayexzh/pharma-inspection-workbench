@@ -64,3 +64,11 @@ This prototype was built with AI assistance. Personal portfolio claims should re
 A next-step control and per-gap links now move the user to the relevant action-plan, evidence or response field. The checks dialog distinguishes review prerequisites from review/closure follow-up. Drafts persist across the three tabs until a single save commits them; this is transient editing state, not an autosave or an audit record.
 
 Candidates can create a fictional finding rather than only edit the six supplied examples. New records start open, unreviewed and without investigation or supporting references. Creation cannot invent an approved state. The example library still does not upload or evaluate actual supporting documents; new observations with no relevant evidence must remain unresolved.
+
+## Work overview and evidence lookup (version 0.3.0)
+
+The initial screen now shows an actionable queue rather than opening the first finding's form. The queue uses saved records and explicit ordering: overdue, due today, reference gaps, ready for demo review and other open work; dates and IDs break ties. This prioritises follow-up and does not assign regulatory risk or patient impact scores.
+
+The four summary buttons open the corresponding finding filter. Review readiness counts saved records whose plan and references pass the core prerequisites and whose review is still pending. Evidence-gap counts include affected open findings only. The editor remains visible if a search excludes its selected finding, with an explicit notice, so filtering does not discard an unsaved draft.
+
+Evidence search and version filters support lookup. Explicit ID links show which findings cite each record and open their reference selections. The app does not infer document relevance from these links. Pure display helpers reuse the core checks and do not change approval, closure or stored data.

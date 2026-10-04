@@ -4,7 +4,7 @@ A learning tool that runs in your browser and helps you practise how pharmaceuti
 
 [中文说明](README.zh-CN.md) · [Case study](docs/case-study.md) · [Official sources](docs/source-notes.md) · [Interview guide](docs/interview-guide.md) · [Verification](docs/verification.md)
 
-![English demo](docs/screenshots/desktop.png)
+![English work overview](docs/screenshots/desktop.png)
 
 ## Who is it for?
 
@@ -34,17 +34,24 @@ Open [http://127.0.0.1:4173](http://127.0.0.1:4173). Stop with `Ctrl+C`.
 4. **Save and review.** Resolve workflow gaps and record a typed reviewer's demo approval.
 5. **Follow up.** Record an effectiveness result before closure, then export an internal report or backup.
 
-Start with **F-001**: try closing it and inspect the blockers. Its missing training record cannot be replaced by an unrelated document.
+Start on the work overview, then open **F-001**: try closing it and inspect the blockers. Its missing training record cannot be replaced by an unrelated document.
 
 Then open the complete, closed **F-003**. Clarify one relevant action explanation and save. This invalidates approval and reopens the record. Inspect it, record a new demo review and close it again.
 
-## Features in version 0.2
+## Features in version 0.3
 
-- Six fictional findings, filters, deadlines and an editable reference date.
-- **New training finding** for your own fictional observation.
-- A next-step guide and gap links that open the relevant field or tab.
-- Drafts retained across tabs within one finding; save once for all tabs.
-- Local browser saving, a change log, JSON backup/import, and CSV/Markdown internal reports with English labels.
+- **Work overview:** an ordered queue with a useful next action for each open finding.
+- **Clickable counts:** open, overdue, ready for demo review, and findings with evidence gaps.
+- **Focused register:** quick filters, priority/deadline/ID sorting and search across the supplied English and Chinese text.
+- **Compact editing:** next-step links, retained drafts across tabs, a desktop save bar and `Ctrl/Cmd+S` to save. Press `/` outside a text field to focus search in the register or evidence library.
+- **Evidence lookup:** search, version-status filters and links showing which findings cite each record.
+- **New training finding**, local saving, change history, JSON backup/import and CSV/Markdown internal reports with English labels.
+
+The queue orders overdue work first, then work due on the review date, reference gaps, records ready for demo review and remaining open work. This is a transparent work order, not a regulatory risk score. Changing the review date changes date-based flags; it does not edit findings or approvals.
+
+“Ready for demo review” means the saved plan and selected references pass completeness checks. A completed effectiveness result is separately required for closure. “Findings with evidence gaps” counts affected open findings, not individual documents or reference gaps. A selected document still needs human assessment.
+
+![English finding editor](docs/screenshots/editor.png)
 
 Unsaved drafts may be lost when closing the browser. Different browsers and addresses have separate storage; export JSON before switching.
 

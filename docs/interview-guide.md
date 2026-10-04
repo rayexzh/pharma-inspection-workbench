@@ -10,9 +10,9 @@ After doing your own review, add one true sentence such as: “I checked the off
 
 ## A five-minute demonstration
 
-1. **Context:** explain the fictional organisation and the QA support task. Show the synthetic-data notice.
+1. **Context:** explain the fictional organisation and the QA support task. Show the synthetic-data notice and work queue. Explain that the order is a follow-up convention, not a risk score.
 2. **Source:** open one official reference. Explain what it supports and the limit of your interpretation.
-3. **Record:** inspect F-001 and explain its missing information, including the unavailable training record. Do not use an unrelated file as a substitute.
+3. **Record:** open F-001 from the queue and explain its missing information, including the unavailable training record. Use the evidence library to show which finding cites that record. Do not use an unrelated file as a substitute.
 4. **Guard:** show why F-001 remains open. Then inspect complete, closed F-003 and clarify its action explanation; saving reopens it and invalidates approval.
 5. **Follow-up:** inspect the local change log, record a new demo review, close F-003 again and export an internal report. Explain that the log has no prior-value snapshots and that the review is not authenticated.
 
