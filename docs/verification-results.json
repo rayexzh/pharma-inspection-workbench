@@ -189,5 +189,15 @@
       }
     ]
   },
-  "limits": "Software checks on fictional records, not GxP validation or evidence of regulatory acceptance. Remote GitHub CI has not run."
+  "limits": "Software checks on fictional records, not GxP validation or evidence of regulatory acceptance.",
+  "github": {
+    "repository": "https://github.com/rayexzh/pharma-inspection-workbench",
+    "commit": "a9a9e5b30fa9ce000b93f37543253976357d38c9",
+    "workflowRunId": 37202446743,
+    "workflowUrl": "https://github.com/rayexzh/pharma-inspection-workbench/actions/runs/37202446743",
+    "nodeVersion": "24.21.0",
+    "conclusion": "success",
+    "passed": 25,
+    "failed": 0
+  }
 }

@@ -48,7 +48,9 @@ A separate delivery-time harness used Chrome DevTools Protocol with an isolated 
 | Dialogs and direct opening | Mobile dialog fit the viewport; the app also loaded from its local HTML file. |
 | Runtime | No browser console errors or uncaught exceptions were observed in these checks. |
 
-The browser harness was used during development and is not part of the GitHub Actions workflow. The supplied workflow runs syntax checks and the reproducible workflow, creation and translation tests. It has not run on a remote GitHub repository in this delivery.
+The browser harness was used during development and is not part of the GitHub Actions workflow. The supplied workflow runs syntax checks and the reproducible workflow, creation and translation tests.
+
+The published repository's [GitHub Actions run](https://github.com/rayexzh/pharma-inspection-workbench/actions/runs/37202446743) passed on **4 October 2026**, using **Node.js 24.21.0**: all syntax checks succeeded and **25 tests passed, 0 failed**. This run checked commit `a9a9e5b30fa9ce000b93f37543253976357d38c9`. It confirms software checks on the published source, not GxP validation.
 
 ## Visual references
 
