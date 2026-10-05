@@ -69,7 +69,7 @@ The final sample used warmed local fonts. An earlier development run included a 
 
 ## Published source checks
 
-Version 0.6 publication results will be recorded here after its GitHub Actions run completes.
+The [GitHub Actions run](https://github.com/rayexzh/pharma-inspection-workbench/actions/runs/37300848193) passed on **5 October 2026** (Shanghai date), using **Node.js 24.21.0**: syntax checks succeeded and **59 tests passed, 0 failed**. It checked source commit `523fb08cf328c6e32d3fe554ce90f336350d6ac8`. This confirms reproducible software checks on the published version, not GxP validation.
 
 ## Visual references
 
