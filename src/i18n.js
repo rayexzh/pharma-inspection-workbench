@@ -270,13 +270,22 @@
   }
   // Translate only known interface strings. Record content is explicitly excluded by the caller.
   function localize(root, language) {
-    const walker = root.ownerDocument.createTreeWalker(root, 4);
+    if (language !== 'zh-CN') return;
+    // Reject protected subtrees once instead of walking their text and searching ancestors repeatedly.
+    const walker = root.ownerDocument.createTreeWalker(root,5,{acceptNode(node) {
+      if (node.nodeType === 1) return node.matches('[data-record-text], textarea, pre, script, style') ? 2 : 3;
+      return 1;
+    }});
     let node;
     while ((node = walker.nextNode())) {
-      if (!node.parentElement.closest('[data-record-text], textarea, pre, script, style')) node.textContent = text(node.textContent,language);
+      const translated = text(node.data,language);
+      if (translated !== node.data) node.data = translated;
     }
     for (const node of root.querySelectorAll('[placeholder], [aria-label]')) {
-      for (const key of ['placeholder','aria-label']) if (node.hasAttribute(key)) node.setAttribute(key,text(node.getAttribute(key),language));
+      for (const key of ['placeholder','aria-label']) if (node.hasAttribute(key)) {
+        const original = node.getAttribute(key), translated = text(original,language);
+        if (original !== translated) node.setAttribute(key,translated);
+      }
     }
   }
   function project(record, seed, translated, language) {

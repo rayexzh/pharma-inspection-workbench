@@ -86,3 +86,11 @@ Only one active finding draft is retained. Reverting edits to the original displ
 An optional preview applies the same save rules to a copy of the saved finding. It shows exact stored field values, changed reference IDs and an automatic reopened status when applicable. It does not commit the draft, reset review or append a history event. Save remains available directly.
 
 A material save appends one event with cloned before/after values for its changed editable fields. An unchanged save adds no event. JSON retains these snapshots and Markdown includes them; CSV remains a current-register export. Old version-1 backups remain readable, but older app versions cannot read the new optional history field. The comparison does not reconstruct absent history, analyse the quality of a change or authenticate its author or contents.
+
+## Language responsiveness, typography and motion (version 0.6.0)
+
+The language dropdown is replaced by a native two-choice radio group with keyboard support. A language change reconciles translated markup into existing nodes, retaining editable controls, selection, internal scrolling and expanded explanations. It does not save a draft into the case. Normal navigation still uses a straightforward render.
+
+Display evaluations are reused only for the same immutable case snapshot and reference date. A save, import, reset or date change invalidates those results; all review and closure transitions still use the canonical core rules. Translation skips protected record subtrees and avoids rewriting unchanged strings.
+
+Local language-specific font stacks, normal Chinese heading tracking and larger reading/input sizes improve legibility without external font requests. Brief panel, dialog, language-selection and control transitions do not fade content to zero. Reduced-motion preferences disable them. The measured timings in [verification](verification.md) describe one development environment, not a frame-rate guarantee or a reproduction of the embedded browser's compositor.

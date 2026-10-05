@@ -38,11 +38,65 @@
   let draftUpdatedAt = '';
   let draftFailureNotified = false;
   let canonicalStored = true;
+  let retainNodes = false;
+  let evaluatedDataset, evaluatedDate, evaluatedFindings = new WeakMap();
+  const displayCore = {evaluateFinding:(finding, records, day) => records === dataset && day === referenceDate ? evaluation(finding) : Core.evaluateFinding(finding,records,day)};
+  function paint(selector, markup) {
+    const target = $(selector);
+    if (!retainNodes) { target.innerHTML = markup; return; }
+    const range = document.createRange(); range.selectNodeContents(target);
+    const next = range.createContextualFragment(markup);
+    I18n.localize(next,language);
+    reconcile(target,next);
+  }
+  function nodeKey(node) {
+    if (node.nodeType !== 1) return '';
+    return node.id || (node.getAttribute('data-finding-id') ? node.tagName+':'+node.getAttribute('data-finding-id')+':'+(node.getAttribute('data-evidence-id') || '') : '');
+  }
+  function compatible(left,right) {
+    return left && left.nodeType === right.nodeType && left.nodeName === right.nodeName && nodeKey(left) === nodeKey(right);
+  }
+  function reconcile(target,next) {
+    let current = target.firstChild;
+    for (const incoming of Array.from(next.childNodes)) {
+      if (!compatible(current,incoming) && nodeKey(incoming)) {
+        const match = Array.from(target.childNodes).find(node => compatible(node,incoming));
+        if (match) { target.insertBefore(match,current); current = match; }
+      }
+      if (!compatible(current,incoming)) {
+        const inserted = incoming.cloneNode(true);
+        target.insertBefore(inserted,current); current = inserted.nextSibling;
+        continue;
+      }
+      if (current.nodeType === 3) {
+        if (current.data !== incoming.data) current.data = incoming.data;
+      } else if (current.nodeType === 1) {
+        for (const attr of Array.from(current.attributes)) {
+          // Keep an expanded explanation open during translation.
+          if (!incoming.hasAttribute(attr.name) && !(current.tagName === 'DETAILS' && attr.name === 'open')) current.removeAttribute(attr.name);
+        }
+        for (const attr of incoming.attributes) if (current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name,attr.value);
+        // Scaffold placeholders are filled by their own render functions below.
+        if (!(incoming.childNodes.length === 0 && ['detail-panel','finding-list','evidence-rows'].includes(current.id))) reconcile(current,incoming);
+        if (['INPUT','TEXTAREA','SELECT'].includes(current.tagName)) {
+          if (current.value !== incoming.value) current.value = incoming.value;
+          if (current.tagName === 'INPUT' && current.checked !== incoming.checked) current.checked = incoming.checked;
+        }
+      }
+      current = current.nextSibling;
+    }
+    while (current) { const following = current.nextSibling; current.remove(); current = following; }
+  }
+  function enter(node, distance = 4) {
+    if (!node || !node.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    node.getAnimations().forEach(animation => animation.cancel());
+    node.animate([{opacity:.96,transform:`translateY(${distance}px)`},{opacity:1,transform:'translateY(0)'}],{duration:180,easing:'cubic-bezier(.2,.7,.3,1)'});
+  }
   try { if (localStorage.getItem(LANGUAGE_KEY) === 'en') language = 'en'; } catch { /* Session preference remains usable. */ }
   const staticText = $$('[data-i18n]').map(node => ({node,text:node.textContent}));
   const staticAria = $$('[aria-label]').map(node => ({node,text:node.getAttribute('aria-label')}));
   const t = value => I18n.text(value,language);
-  const localize = node => I18n.localize(node,language);
+  const localize = node => { if (!retainNodes) I18n.localize(node,language); };
   function project(record, kind) {
     const seed = kind === 'case' ? Demo.dataset.case : Demo.dataset[kind].find(item => item.id === record.id);
     const translation = kind === 'case' ? Zh.case : Zh[kind][record.id];
@@ -55,9 +109,10 @@
   function applyStaticLanguage() {
     document.documentElement.lang = language;
     document.title = t('Pharma Inspection Workbench');
-    staticText.forEach(({node,text}) => { node.textContent = t(text); });
-    staticAria.forEach(({node,text}) => { node.setAttribute('aria-label',t(text)); });
-    $('#language-switch').value = language;
+    staticText.forEach(({node,text}) => { const translated = t(text); if (node.textContent !== translated) node.textContent = translated; });
+    staticAria.forEach(({node,text}) => { const translated = t(text); if (node.getAttribute('aria-label') !== translated) node.setAttribute('aria-label',translated); });
+    $('#language-switch').dataset.language = language;
+    $$('input[name=interface-language]').forEach(input => { input.checked = input.value === language; });
     $('#project-docs').href = language === 'zh-CN' ? 'README.zh-CN.md' : 'README.md';
   }
   function captureDraft() {
@@ -171,7 +226,7 @@
     });
   }
 
-  function workflowState(finding) { return Workflow.classifyFinding(finding,dataset,referenceDate,Core); }
+  function workflowState(finding) { return Workflow.classifyFinding(finding,dataset,referenceDate,displayCore); }
   function priorityBadge(state) { return `<span class="badge ${escape(state.priority)}">${escape(t(state.labelKey))}</span>`; }
   function workflowMarkup(finding) {
     const check = evaluation(finding);
@@ -224,7 +279,14 @@
   }
 
   function currentFinding() { return dataset.findings.find(item => item.id === selectedId); }
-  function evaluation(finding) { return Core.evaluateFinding(finding, dataset, referenceDate); }
+  function evaluation(finding) {
+    // Canonical transitions replace the dataset. Cache only display results for that exact snapshot and date.
+    if (evaluatedDataset !== dataset || evaluatedDate !== referenceDate) {
+      evaluatedDataset = dataset; evaluatedDate = referenceDate; evaluatedFindings = new WeakMap();
+    }
+    if (!evaluatedFindings.has(finding)) evaluatedFindings.set(finding,Core.evaluateFinding(finding,dataset,referenceDate));
+    return evaluatedFindings.get(finding);
+  }
   function canNavigate() {
     if (!dirty) return true;
     if (!window.confirm(t('Discard unsaved changes to this finding?'))) return false;
@@ -240,7 +302,7 @@
     return false;
   }
 
-  function focusMatches(finding,focus) { return Workflow.matchesFocus(finding,dataset,referenceDate,Core,focus); }
+  function focusMatches(finding,focus) { return Workflow.matchesFocus(finding,dataset,referenceDate,displayCore,focus); }
   function renderMetrics() {
     const count = focus => dataset.findings.filter(item => focusMatches(item,focus)).length;
     const values = [
@@ -249,7 +311,7 @@
       {label:'Ready for demo review',value:count('review_ready'),note:'saved plan and references present',focus:'review_ready'},
       {label:'Findings with evidence gaps',value:count('evidence_gap'),note:'open findings, not document count',focus:'evidence_gap'}
     ];
-    $('#metrics').innerHTML = values.map(item => `<button type="button" data-metric-focus="${item.focus}" aria-pressed="${view === 'findings' && filters.focus === item.focus}" class="metric${item.warn?' warn':''}${view === 'findings' && filters.focus === item.focus?' active':''}"><span class="metric-label">${escape(t(item.label))}</span><span class="metric-value">${item.value}</span><span class="metric-note">${escape(t(item.note))}</span></button>`).join('');
+    paint('#metrics', values.map(item => `<button type="button" data-metric-focus="${item.focus}" aria-pressed="${view === 'findings' && filters.focus === item.focus}" class="metric${item.warn?' warn':''}${view === 'findings' && filters.focus === item.focus?' active':''}"><span class="metric-label">${escape(t(item.label))}</span><span class="metric-value">${item.value}</span><span class="metric-note">${escape(t(item.note))}</span></button>`).join(''));
   }
 
   function searchText(record,kind) {
@@ -264,19 +326,19 @@
       (filters.severity === 'all' || item.severity === filters.severity) &&
       (!search || searchText(item,'findings').includes(search))
     );
-    return Workflow.sortFindings(records,dataset,referenceDate,Core,filters.sort);
+    return Workflow.sortFindings(records,dataset,referenceDate,displayCore,filters.sort);
   }
   function renderList() {
     const list = filteredFindings();
     $('#finding-count').textContent = t(`${list.length} of ${dataset.findings.length}`);
-    $('#finding-list').innerHTML = list.length ? list.map(record => {
+    paint('#finding-list', list.length ? list.map(record => {
       const item = project(record,'findings');
       const state = workflowState(record);
       return `<button type="button" class="finding-item${item.id === selectedId?' selected':''}" data-finding-id="${escape(item.id)}" aria-pressed="${item.id === selectedId}"><span class="finding-meta"><span class="finding-id">${escape(item.id)}</span>${badge(item.severity)}</span><strong data-record-text>${escape(item.title)}</strong><span class="finding-area" data-record-text>${escape(item.area)}</span><span class="finding-owner" data-record-text>${escape(item.owner || t('Unassigned'))}</span><span class="finding-bottom">${priorityBadge(state)}<span>${displayDate(item.dueDate)}</span></span></button>`;
-    }).join('') : `<div class="empty-state">${t('No findings match these filters.')}<br>${t('Change your search or filter.')}</div>`;
+    }).join('') : `<div class="empty-state">${t('No findings match these filters.')}<br>${t('Change your search or filter.')}</div>`);
     const outside = !list.some(item => item.id === selectedId);
     $('#filter-context').hidden = !outside;
-    $('#filter-context').innerHTML = outside ? `${t('The selected finding is outside these filters. Your editor stays open.')} <button type="button" class="text-button" data-clear-filters>${t('Clear filters')}</button>` : '';
+    paint('#filter-context', outside ? `${t('The selected finding is outside these filters. Your editor stays open.')} <button type="button" class="text-button" data-clear-filters>${t('Clear filters')}</button>` : '');
     $$('[data-focus]').forEach(item => { item.classList.toggle('active',item.dataset.focus === filters.focus); item.setAttribute('aria-pressed',String(item.dataset.focus === filters.focus)); });
     $('#clear-filters').hidden = !filters.search && filters.status === 'all' && filters.severity === 'all' && filters.focus === 'all';
   }
@@ -288,10 +350,10 @@
   }
 
   function renderOverview() {
-    const rows = Workflow.sortFindings(dataset.findings.filter(item => item.status !== 'closed'),dataset,referenceDate,Core,'priority');
+    const rows = Workflow.sortFindings(dataset.findings.filter(item => item.status !== 'closed'),dataset,referenceDate,displayCore,'priority');
     const closed = dataset.findings.filter(item => item.status === 'closed').length;
     const current = dataset.evidence.filter(item => item.status === 'current').length;
-    $('#view-content').innerHTML = `<article class="overview-panel"><div class="overview-heading"><div><span class="mini-label">INSPECTION RESPONSE</span><h2>What needs attention</h2><p class="overview-lead">Prepare a response to an inspection finding: plan an action, link supporting records, review and close.</p></div><button type="button" class="button secondary" data-open-view="case">How it works</button></div><div class="overview-grid"><section class="priority-panel" aria-label="Work queue"><div class="queue-heading"><h2>Work queue</h2><span class="count-label">${t(`${rows.length} open findings`)}</span></div><ul class="priority-list">${rows.map(record => { const item = project(record,'findings'); const state = workflowState(record); return `<li class="priority-row"><div><div class="priority-meta"><span class="finding-id">${escape(item.id)}</span>${priorityBadge(state)}${badge(item.severity)}</div><h3><button type="button" class="queue-title" data-finding-id="${escape(item.id)}" data-record-text>${escape(item.title)}</button></h3><p><span data-record-text>${escape(item.owner || t('Unassigned'))}</span> · ${t('Due')} ${displayDate(item.dueDate)}</p></div><button type="button" class="text-button priority-action" data-finding-id="${escape(item.id)}" data-next-code="${escape(state.nextCode)}">${t(state.summaryKey)} →</button></li>`; }).join('') || `<li class="empty-state">${t('No open findings in this workspace.')}</li>`}</ul><div class="queue-footer"><button type="button" class="text-button" data-open-view="findings">Open full register →</button><details class="queue-method"><summary>How this queue is ordered</summary><p>Overdue → due today → reference gaps → ready for demo review → other open work. Due date and record ID break ties. This is a work order, not a regulatory risk score.</p></details></div></section><aside class="overview-side"><h2>Case snapshot</h2><dl class="snapshot-list"><div class="snapshot-row"><dt>Closed findings</dt><dd>${t(`${closed} of ${dataset.findings.length}`)}</dd></div><div class="snapshot-row"><dt>Current evidence records</dt><dd>${current} / ${dataset.evidence.length}</dd></div><div class="snapshot-row"><dt>Source references</dt><dd>${dataset.sources.length}</dd></div><div class="snapshot-row"><dt>Review as of</dt><dd>${displayDate(referenceDate)}</dd></div></dl><section class="exercise-panel"><h3>Try a short exercise</h3><p>Compare an incomplete response with a closed example. Then edit the closed record to see why another review is required.</p><div class="exercise-links"><button type="button" class="text-button" data-finding-id="F-001">F-001 · Find the gaps →</button><button type="button" class="text-button" data-finding-id="F-003">F-003 · Inspect a closed example →</button></div></section><h3>Find the supporting record</h3><p>Search the evidence library and see which findings cite each record.</p><button type="button" class="button secondary" data-open-view="evidence">Browse evidence</button><p class="overview-note">Saved records drive these counts and action cues. Completeness does not prove that a response is correct or accepted.</p></aside></div></article>`;
+    paint('#view-content', `<article class="overview-panel"><div class="overview-heading"><div><span class="mini-label">INSPECTION RESPONSE</span><h2>What needs attention</h2><p class="overview-lead">Prepare a response to an inspection finding: plan an action, link supporting records, review and close.</p></div><button type="button" class="button secondary" data-open-view="case">How it works</button></div><div class="overview-grid"><section class="priority-panel" aria-label="Work queue"><div class="queue-heading"><h2>Work queue</h2><span class="count-label">${t(`${rows.length} open findings`)}</span></div><ul class="priority-list">${rows.map(record => { const item = project(record,'findings'); const state = workflowState(record); return `<li class="priority-row"><div><div class="priority-meta"><span class="finding-id">${escape(item.id)}</span>${priorityBadge(state)}${badge(item.severity)}</div><h3><button type="button" class="queue-title" data-finding-id="${escape(item.id)}" data-record-text>${escape(item.title)}</button></h3><p><span data-record-text>${escape(item.owner || t('Unassigned'))}</span> · ${t('Due')} ${displayDate(item.dueDate)}</p></div><button type="button" class="text-button priority-action" data-finding-id="${escape(item.id)}" data-next-code="${escape(state.nextCode)}">${t(state.summaryKey)} →</button></li>`; }).join('') || `<li class="empty-state">${t('No open findings in this workspace.')}</li>`}</ul><div class="queue-footer"><button type="button" class="text-button" data-open-view="findings">Open full register →</button><details class="queue-method"><summary>How this queue is ordered</summary><p>Overdue → due today → reference gaps → ready for demo review → other open work. Due date and record ID break ties. This is a work order, not a regulatory risk score.</p></details></div></section><aside class="overview-side"><h2>Case snapshot</h2><dl class="snapshot-list"><div class="snapshot-row"><dt>Closed findings</dt><dd>${t(`${closed} of ${dataset.findings.length}`)}</dd></div><div class="snapshot-row"><dt>Current evidence records</dt><dd>${current} / ${dataset.evidence.length}</dd></div><div class="snapshot-row"><dt>Source references</dt><dd>${dataset.sources.length}</dd></div><div class="snapshot-row"><dt>Review as of</dt><dd>${displayDate(referenceDate)}</dd></div></dl><section class="exercise-panel"><h3>Try a short exercise</h3><p>Compare an incomplete response with a closed example. Then edit the closed record to see why another review is required.</p><div class="exercise-links"><button type="button" class="text-button" data-finding-id="F-001">F-001 · Find the gaps →</button><button type="button" class="text-button" data-finding-id="F-003">F-003 · Inspect a closed example →</button></div></section><h3>Find the supporting record</h3><p>Search the evidence library and see which findings cite each record.</p><button type="button" class="button secondary" data-open-view="evidence">Browse evidence</button><p class="overview-note">Saved records drive these counts and action cues. Completeness does not prove that a response is correct or accepted.</p></aside></div></article>`);
     const exerciseOpen = dataset.findings.find(item => item.id === 'F-001');
     const exerciseClosed = dataset.findings.find(item => item.id === 'F-003');
     $('.exercise-panel').hidden = !exerciseOpen || !exerciseClosed || exerciseClosed.status !== 'closed' || workflowState(exerciseOpen).blockingCount === 0;
@@ -359,8 +421,8 @@
       const displayedReviewer = language === 'zh-CN' && review.reviewer === seedReviewer ? Zh.historyActors[review.reviewer] || review.reviewer : review.reviewer;
       body += `<div class="review-strip"><strong>${review.status === 'approved'?'Demo review recorded':'Awaiting demo review'}</strong>${review.status === 'approved'?` · <span data-record-text>${escape(displayedReviewer)}</span><br>${escape(review.reviewedAt)}`:'<br>Typed reviewer names are not authenticated signatures.'}</div><div class="form-divider"><p class="section-label">LOCAL CHANGE HISTORY</p><p class="references-note">Editable browser history for this demonstration; not a tamper-proof audit trail.</p><ol class="history-list" tabindex="-1">${finding.history.map((record,index) => ({...I18n.history(record,Zh,language),index})).reverse().map(item => `<li><div data-record-text>${escape(item.action)}<span>${escape(item.actor)} · ${escape(item.timestamp)}</span></div>${item.changes?.length ? `<button type="button" class="text-button" data-history-index="${item.index}">${t('View saved changes')} →</button>` : `<small class="history-no-comparison">${t('No field comparison was recorded for this entry.')}</small>`}</li>`).join('')}</ol></div>`;
     }
-    $('#detail-panel').innerHTML = `<div id="filter-context" class="draft-note" hidden></div><div class="detail-top"><div class="detail-identity"><span class="finding-id" data-record-text>${escape(finding.id)} · ${escape(finding.area)}</span>${badge(finding.status)}</div><h2 data-record-text>${escape(finding.title)}</h2><p class="finding-description" data-record-text>${escape(finding.description)}</p></div>${workflowMarkup(storedFinding)}<div class="tab-bar" role="tablist" aria-label="Finding details">${tabs.map(item => `<button type="button" class="tab${tab === item.id?' active':''}" id="tab-${item.id}" role="tab" aria-selected="${tab === item.id}" aria-controls="detail-body" tabindex="${tab === item.id?'0':'-1'}" data-tab="${item.id}">${item.label}</button>`).join('')}</div><form id="finding-form"><div class="detail-body" id="detail-body" role="tabpanel" aria-labelledby="tab-${tab}">${body}</div><div class="plan-footer"><button type="submit" id="save-finding" class="button">Save changes</button><button type="button" class="button secondary" id="preview-changes" data-action="preview-changes">Preview changes</button><button type="button" class="text-button" id="discard-draft" data-action="discard-draft">Discard draft</button><span class="save-state" id="save-state">${t(dirty?'Unsaved changes':'Saved')}</span><div class="secondary-actions"><button type="button" class="button secondary" id="approve-finding" data-action="approve">Record review</button><button type="button" class="button secondary" id="close-finding" data-action="close" ${finding.status === 'closed'?'disabled':''}>Close finding</button></div></div><p class="draft-status" id="draft-status" role="status" aria-live="polite" hidden></p></form>`;
-    $('#finding-form').addEventListener('submit', event => { event.preventDefault(); save(); });
+    paint('#detail-panel', `<div id="filter-context" class="draft-note" hidden></div><div class="detail-top"><div class="detail-identity"><span class="finding-id" data-record-text>${escape(finding.id)} · ${escape(finding.area)}</span>${badge(finding.status)}</div><h2 data-record-text>${escape(finding.title)}</h2><p class="finding-description" data-record-text>${escape(finding.description)}</p></div>${workflowMarkup(storedFinding)}<div class="tab-bar" role="tablist" aria-label="Finding details">${tabs.map(item => `<button type="button" class="tab${tab === item.id?' active':''}" id="tab-${item.id}" role="tab" aria-selected="${tab === item.id}" aria-controls="detail-body" tabindex="${tab === item.id?'0':'-1'}" data-tab="${item.id}">${item.label}</button>`).join('')}</div><form id="finding-form"><div class="detail-body" id="detail-body" role="tabpanel" aria-labelledby="tab-${tab}">${body}</div><div class="plan-footer"><button type="submit" id="save-finding" class="button">Save changes</button><button type="button" class="button secondary" id="preview-changes" data-action="preview-changes">Preview changes</button><button type="button" class="text-button" id="discard-draft" data-action="discard-draft">Discard draft</button><span class="save-state" id="save-state">${t(dirty?'Unsaved changes':'Saved')}</span><div class="secondary-actions"><button type="button" class="button secondary" id="approve-finding" data-action="approve">Record review</button><button type="button" class="button secondary" id="close-finding" data-action="close" ${finding.status === 'closed'?'disabled':''}>Close finding</button></div></div><p class="draft-status" id="draft-status" role="status" aria-live="polite" hidden></p></form>`);
+    $('#finding-form').onsubmit = event => { event.preventDefault(); save(); };
     localize($('#detail-panel'));
     renderList();
     updateDraftStatus();
@@ -373,40 +435,40 @@
   }
   function renderFindings() {
     const focuses = [['all','All findings'],['open','Open'],['overdue','Overdue'],['due_today','Due today'],['evidence_gap','Evidence gaps'],['review_ready','Ready for demo review']];
-    $('#view-content').innerHTML = `<div class="register-toolbar"><div class="quick-filters" aria-label="Focus findings">${focuses.map(([id,label]) => `<button type="button" class="quick-filter${filters.focus === id?' active':''}" data-focus="${id}" aria-pressed="${filters.focus === id}">${t(label)}</button>`).join('')}<button type="button" class="text-button" id="clear-filters" data-clear-filters>${t('Clear filters')}</button></div><label class="sort-control" for="sort-filter"><span>Sort by</span><select id="sort-filter"><option value="priority">Work priority</option><option value="due_date">Due date</option><option value="id">Record ID</option></select></label></div><div class="workbench"><section class="finding-board" aria-label="Findings list"><div class="board-heading"><h2>Findings register</h2><span id="finding-count" class="count-label"></span></div><div class="filters"><label class="sr-only" for="search">Search findings</label><input id="search" type="search" placeholder="Search finding, area or owner" value="${escape(filters.search)}"><div class="filter-pair"><label class="sr-only" for="status-filter">Filter by status</label><select id="status-filter"><option value="all">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="closed">Closed</option><option value="overdue">Overdue</option></select><label class="sr-only" for="severity-filter">Filter by severity</label><select id="severity-filter"><option value="all">All severities</option><option value="major">Major</option><option value="other">Other</option></select></div></div><div id="finding-list" class="finding-list"></div></section><section id="detail-panel" class="detail-panel" aria-label="Selected finding"></section></div>`;
+    paint('#view-content', `<div class="register-toolbar"><div class="quick-filters" aria-label="Focus findings">${focuses.map(([id,label]) => `<button type="button" class="quick-filter${filters.focus === id?' active':''}" data-focus="${id}" aria-pressed="${filters.focus === id}">${t(label)}</button>`).join('')}<button type="button" class="text-button" id="clear-filters" data-clear-filters>${t('Clear filters')}</button></div><label class="sort-control" for="sort-filter"><span>Sort by</span><select id="sort-filter"><option value="priority">Work priority</option><option value="due_date">Due date</option><option value="id">Record ID</option></select></label></div><div class="workbench"><section class="finding-board" aria-label="Findings list"><div class="board-heading"><h2>Findings register</h2><span id="finding-count" class="count-label"></span></div><div class="filters"><label class="sr-only" for="search">Search findings</label><input id="search" type="search" placeholder="Search finding, area or owner" value="${escape(filters.search)}"><div class="filter-pair"><label class="sr-only" for="status-filter">Filter by status</label><select id="status-filter"><option value="all">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="closed">Closed</option><option value="overdue">Overdue</option></select><label class="sr-only" for="severity-filter">Filter by severity</label><select id="severity-filter"><option value="all">All severities</option><option value="major">Major</option><option value="other">Other</option></select></div></div><div id="finding-list" class="finding-list"></div></section><section id="detail-panel" class="detail-panel" aria-label="Selected finding"></section></div>`);
     $('#status-filter').value = filters.status;
     $('#severity-filter').value = filters.severity;
     $('#sort-filter').value = filters.sort;
-    $('#search').addEventListener('input', event => { filters.search = event.target.value; renderList(); });
-    $('#status-filter').addEventListener('change', event => { filters.status = event.target.value; renderList(); });
-    $('#severity-filter').addEventListener('change', event => { filters.severity = event.target.value; renderList(); });
-    $('#sort-filter').addEventListener('change', event => { filters.sort = event.target.value; renderList(); });
+    $('#search').oninput = event => { filters.search = event.target.value; renderList(); };
+    $('#status-filter').onchange = event => { filters.status = event.target.value; renderList(); };
+    $('#severity-filter').onchange = event => { filters.severity = event.target.value; renderList(); };
+    $('#sort-filter').onchange = event => { filters.sort = event.target.value; renderList(); };
     localize($('#view-content'));
     renderDetail();
   }
   function renderEvidenceRows() {
     const records = dataset.evidence.filter(record => (evidenceFilters.status === 'all' || record.status === evidenceFilters.status) && (!evidenceFilters.search.trim() || searchText(record,'evidence').includes(evidenceFilters.search.trim().toLowerCase())));
     $('#evidence-count').textContent = t(`${records.length} of ${dataset.evidence.length}`);
-    $('#evidence-rows').innerHTML = records.map(record => {
+    paint('#evidence-rows', records.map(record => {
       const item = project(record,'evidence');
       const related = Workflow.relatedFindings(dataset,item.id);
       return `<tr><td>${escape(item.id)}</td><td><strong data-record-text>${escape(item.title)}</strong><small data-record-text>${escape(item.summary)}</small><div class="link-usage"><span>${t('Linked findings')}</span>${related.length ? related.map(finding => `<button type="button" class="text-button" data-finding-id="${escape(finding.id)}" data-next-code="no_evidence" data-evidence-id="${escape(item.id)}" title="${escape(project(finding,'findings').title)}">${escape(finding.id)}</button>`).join('') : `<span>${t('None')}</span>`}</div></td><td>${escape(item.version || '—')}</td><td>${badge(item.status)}</td><td>${item.status === 'missing'?`<span class="count-label">${t('Not available')}</span>`:`<button type="button" class="text-button" data-action="view-evidence" data-id="${escape(item.id)}">${t('Read record')}</button>`}</td></tr>`;
-    }).join('') || `<tr><td colspan="5" class="empty-state">${t('No evidence matches these filters.')}</td></tr>`;
+    }).join('') || `<tr><td colspan="5" class="empty-state">${t('No evidence matches these filters.')}</td></tr>`);
     $$('[data-evidence-status]').forEach(item => { item.classList.toggle('active',item.dataset.evidenceStatus === evidenceFilters.status); item.setAttribute('aria-pressed',String(item.dataset.evidenceStatus === evidenceFilters.status)); });
   }
   function renderEvidence() {
-    $('#view-content').innerHTML = `<section class="library-panel"><div class="library-heading"><div><h2>Evidence library</h2><p>Fictional records and their version status. Missing records remain visible.</p></div><span id="evidence-count" class="count-label"></span></div><div class="evidence-toolbar"><div class="library-search"><label class="sr-only" for="evidence-search">Search evidence</label><input id="evidence-search" type="search" placeholder="Search record ID, title or summary" value="${escape(evidenceFilters.search)}"></div><div class="quick-filters" aria-label="Filter evidence">${['all','current','missing','superseded'].map(status => `<button type="button" class="quick-filter" data-evidence-status="${status}" aria-pressed="${evidenceFilters.status === status}">${t(status === 'all'?'All records':labels[status])}</button>`).join('')}</div></div><div class="table-scroll"><table class="evidence-table"><thead><tr><th scope="col">Record ID</th><th scope="col">Document / record</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Record</th></tr></thead><tbody id="evidence-rows"></tbody></table></div><p class="library-footnote">A link shows that a finding cites this record. Relevance and factual accuracy require human review.</p></section>`;
-    $('#evidence-search').addEventListener('input',event => { evidenceFilters.search = event.target.value; renderEvidenceRows(); });
+    paint('#view-content', `<section class="library-panel"><div class="library-heading"><div><h2>Evidence library</h2><p>Fictional records and their version status. Missing records remain visible.</p></div><span id="evidence-count" class="count-label"></span></div><div class="evidence-toolbar"><div class="library-search"><label class="sr-only" for="evidence-search">Search evidence</label><input id="evidence-search" type="search" placeholder="Search record ID, title or summary" value="${escape(evidenceFilters.search)}"></div><div class="quick-filters" aria-label="Filter evidence">${['all','current','missing','superseded'].map(status => `<button type="button" class="quick-filter" data-evidence-status="${status}" aria-pressed="${evidenceFilters.status === status}">${t(status === 'all'?'All records':labels[status])}</button>`).join('')}</div></div><div class="table-scroll"><table class="evidence-table"><thead><tr><th scope="col">Record ID</th><th scope="col">Document / record</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Record</th></tr></thead><tbody id="evidence-rows"></tbody></table></div><p class="library-footnote">A link shows that a finding cites this record. Relevance and factual accuracy require human review.</p></section>`);
+    $('#evidence-search').oninput = event => { evidenceFilters.search = event.target.value; renderEvidenceRows(); };
     localize($('#view-content')); renderEvidenceRows();
   }
 
   function renderSources() {
-    $('#view-content').innerHTML = `<section class="library-panel"><div class="library-heading"><div><h2>Source register</h2><p>Source references in this workspace. Review origin, applicability and later updates.</p></div></div><div class="source-index">${dataset.sources.map(record => project(record,'sources')).map(item => `<article class="source-card"><span class="finding-id">${escape(item.id)}</span><h3 data-record-text>${escape(item.title)}</h3><p data-record-text>${escape(item.scope)}</p><a href="${escape(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">Open source reference</a><br><small>Link checked ${displayDate(item.checkedOn)} · Applicability requires human review</small></article>`).join('')}</div><div class="attention-box"><h3>How these references are used</h3><p class="references-note">The project applies a small set of transparent completeness checks. It does not interpret all GMP/GDP requirements or verify whether a submitted statement is true.</p><a href="docs/source-notes.md">Read the source-to-feature notes</a></div></section>`;
+    paint('#view-content', `<section class="library-panel"><div class="library-heading"><div><h2>Source register</h2><p>Source references in this workspace. Review origin, applicability and later updates.</p></div></div><div class="source-index">${dataset.sources.map(record => project(record,'sources')).map(item => `<article class="source-card"><span class="finding-id">${escape(item.id)}</span><h3 data-record-text>${escape(item.title)}</h3><p data-record-text>${escape(item.scope)}</p><a href="${escape(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">Open source reference</a><br><small>Link checked ${displayDate(item.checkedOn)} · Applicability requires human review</small></article>`).join('')}</div><div class="attention-box"><h3>How these references are used</h3><p class="references-note">The project applies a small set of transparent completeness checks. It does not interpret all GMP/GDP requirements or verify whether a submitted statement is true.</p><a href="docs/source-notes.md">Read the source-to-feature notes</a></div></section>`);
     localize($('#view-content'));
   }
 
   function renderCase() {
-    $('#view-content').innerHTML = `<article class="info-panel"><p class="eyebrow">LEARNING CASE / QUALITY ASSURANCE</p><h2 data-record-text>${escape(project(dataset.case,'case').name)}</h2><p data-record-text>${escape(project(dataset.case,'case').description)}</p><dl class="case-facts"><div><dt>Case ID</dt><dd>${escape(dataset.case.id)}</dd></div><div><dt>Fictional site</dt><dd data-record-text>${escape(project(dataset.case,'case').site)}</dd></div><div><dt>Simulated inspection</dt><dd>${displayDate(dataset.case.inspectionDate)}</dd></div></dl><h3>Work through one finding</h3><ol><li>Read the finding and identify what is known and what still needs investigation.</li><li>Set an owner and due date. Describe impact, interim action, corrective action and the effectiveness check.</li><li>Connect current supporting records and appropriate official references.</li><li>Save, then record a named demo review. A later material edit invalidates that review.</li><li>Record an effectiveness result before closing the simulated workflow.</li></ol><h3>What the checks mean</h3><p>Checks look for missing fields, unavailable or superseded evidence, missing source references and pending review. A completed checklist is not a judgement that a medicine, facility or response complies with regulations.</p><h3>Where the data lives</h3><p>Changes stay in this browser when local storage is available. Export JSON for backup or to move between browsers. CSV and Markdown exports are internal working reports. No data is sent to a server by this app.</p><h3>Limits of this prototype</h3><p>There is no authenticated reviewer, electronic signature, tamper-proof history, multi-user access or validated document management. Use fictional or public information only. Source selection and factual verification need qualified human judgement.</p><h3>Portfolio documentation</h3><p><a href="docs/case-study.md">English case study</a> · <a href="docs/interview-guide.md">Interview demonstration</a> · <a href="README.zh-CN.md">中文上手指南</a> · <a href="LICENSE">MIT licence</a></p></article>`;
+    paint('#view-content', `<article class="info-panel"><p class="eyebrow">LEARNING CASE / QUALITY ASSURANCE</p><h2 data-record-text>${escape(project(dataset.case,'case').name)}</h2><p data-record-text>${escape(project(dataset.case,'case').description)}</p><dl class="case-facts"><div><dt>Case ID</dt><dd>${escape(dataset.case.id)}</dd></div><div><dt>Fictional site</dt><dd data-record-text>${escape(project(dataset.case,'case').site)}</dd></div><div><dt>Simulated inspection</dt><dd>${displayDate(dataset.case.inspectionDate)}</dd></div></dl><h3>Work through one finding</h3><ol><li>Read the finding and identify what is known and what still needs investigation.</li><li>Set an owner and due date. Describe impact, interim action, corrective action and the effectiveness check.</li><li>Connect current supporting records and appropriate official references.</li><li>Save, then record a named demo review. A later material edit invalidates that review.</li><li>Record an effectiveness result before closing the simulated workflow.</li></ol><h3>What the checks mean</h3><p>Checks look for missing fields, unavailable or superseded evidence, missing source references and pending review. A completed checklist is not a judgement that a medicine, facility or response complies with regulations.</p><h3>Where the data lives</h3><p>Changes stay in this browser when local storage is available. Export JSON for backup or to move between browsers. CSV and Markdown exports are internal working reports. No data is sent to a server by this app.</p><h3>Limits of this prototype</h3><p>There is no authenticated reviewer, electronic signature, tamper-proof history, multi-user access or validated document management. Use fictional or public information only. Source selection and factual verification need qualified human judgement.</p><h3>Portfolio documentation</h3><p><a href="docs/case-study.md">English case study</a> · <a href="docs/interview-guide.md">Interview demonstration</a> · <a href="README.zh-CN.md">中文上手指南</a> · <a href="LICENSE">MIT licence</a></p></article>`);
     localize($('#view-content'));
   }
 
@@ -467,9 +529,11 @@
 
   function goToTab(nextTab, selector) {
     if (dirty) captureDraft();
+    const changedTab = tab !== nextTab;
     tab = nextTab;
     if (dirty) writeRecoveryCopy();
     renderDetail();
+    if (changedTab) enter($('#detail-body'),3);
     const control = $(selector || `#tab-${tab}`);
     if (control) { control.focus(); control.scrollIntoView({block:'center'}); }
   }
@@ -574,10 +638,17 @@
   }
 
   $('#language-switch').addEventListener('change',event => {
+    const next = event.target.value === 'en' ? 'en' : 'zh-CN';
+    if (next === language) return;
     if (dirty) { captureDraft(); writeRecoveryCopy(); }
-    language = event.target.value === 'en' ? 'en' : 'zh-CN';
+    const scrollers = $$('main, #finding-list, .table-scroll, textarea').map(node => ({node,top:node.scrollTop,left:node.scrollLeft}));
+    const position = {x:scrollX,y:scrollY};
+    language = next;
     $('#toast').hidden = true;
-    render();
+    retainNodes = true;
+    try { render(); } finally { retainNodes = false; }
+    scrollers.forEach(({node,top,left}) => { node.scrollTop = top; node.scrollLeft = left; });
+    window.scrollTo(position.x,position.y);
     try { localStorage.setItem(LANGUAGE_KEY,language); } catch { notify('Language preference could not be saved. It applies for this session.',true); }
   });
 
@@ -585,7 +656,7 @@
     const button = event.target.closest('[data-view]');
     if (button?.dataset.view === view) return;
     if (!button || button.dataset.view === 'findings' && !requireRecoveryDecision() || !canNavigate()) return;
-    view = button.dataset.view; render();
+    view = button.dataset.view; render(); enter($('#view-content'));
   });
   function openFinding(id,code,evidenceId) {
     if (!requireRecoveryDecision() || !dataset.findings.some(item => item.id === id)) return;

@@ -38,7 +38,9 @@ Start on the work overview, then open **F-001**: try closing it and inspect the 
 
 Then open the complete, closed **F-003**. Clarify one relevant action explanation and save. This invalidates approval and reopens the record. Inspect it, record a new demo review and close it again.
 
-## Features in version 0.5
+## Features in version 0.6
+
+- **Smoother language changes:** click 中文 / EN directly. The editor, caret, draft, filters and scroll position are retained; display checks reuse the same saved snapshot. Local Chinese/English typography is easier to read, with brief panel/dialog feedback and support for reduced motion.
 
 - **Change comparisons:** preview edited fields before saving, then view recorded before/after values in the local history. A reopened status is included; old entries without comparisons are labelled clearly.
 

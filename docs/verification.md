@@ -1,6 +1,6 @@
 # Verification record
 
-Observed on **5 October 2026** for version **0.5.0**. These checks concern software behaviour in a fictional case. They are not GxP validation, a regulatory assessment, a usability study or evidence of customer benefit.
+Observed on **5 October 2026** for version **0.6.0**. These checks concern software behaviour in a fictional case. They are not GxP validation, a regulatory assessment, a usability study or evidence of customer benefit.
 
 ## Reproducible code checks
 
@@ -30,7 +30,7 @@ Seven comparison tests cover pure previews, parity with save including reopening
 
 ## Browser checks
 
-A development harness used Chrome DevTools Protocol with an isolated **Headless Chrome 154** profile. The final runs passed **78 checks, 0 failed**: one first-use language check, 21 existing behaviour checks, 13 bilingual checks, nine guided-editing/creation checks, 12 overview/redesign checks, 14 draft-recovery/guidance checks and eight change-comparison checks. No browser console errors or uncaught exceptions were observed.
+A development harness used Chrome DevTools Protocol with an isolated **Headless Chrome 154** profile. The final runs passed **88 checks, 0 failed**: one first-use language check, 21 existing behaviour checks, 13 bilingual checks, nine guided-editing/creation checks, 12 overview/redesign checks, 14 draft-recovery/guidance checks, eight change-comparison checks and ten responsiveness/motion checks. No browser console errors or uncaught exceptions were observed.
 
 | Area | Observed result |
 |---|---|
@@ -48,15 +48,28 @@ A development harness used Chrome DevTools Protocol with an isolated **Headless 
 | Review and closure | Incomplete review and closure were blocked. Material edits invalidated review and reopened closed records; named demo review and subsequent closure were exercised. |
 | Language | First-use Chinese, preference after reload, translated supplied records, exact imported/custom text, unchanged canonical JSON and no-op translated saves were checked. |
 | Exports/imports | JSON, CSV and Markdown downloads and a round-trip worked. Malformed, oversized and empty-finding JSON did not replace the workspace. |
+| Language responsiveness | Native radio pointer/arrow-key selection worked. Repeated language changes retained the form, textarea, focus, caret, internal scrolling, expanded explanations and filters. A subsequent save produced one history event. Display results refreshed after saving and changing the review date. |
+| Motion and typography | Normal dialog animation was finite (180 ms); reduced-motion emulation disabled dialog, panel and language-indicator animation. Inputs were 14 px on desktop/tablet and 16 px on phone. No external font requests were observed. |
 | Responsive layout | Both languages fit 375 × 812, 720 × 500 and 1440 × 1000 viewports. No page-width overflow; the narrow navigation/evidence table scroll inside their containers. |
 | Keyboard and dialogs | Detail-tab arrow/Home/End keys, field focus and narrow dialogs worked. |
 | Direct opening | The app also loaded from its local HTML file without a server. |
 
 The browser harness is a delivery-time check and is not included in GitHub Actions. The supplied workflow runs syntax checks and the 59 reproducible unit tests. Only the observed environment is covered; the viewport checks are not a complete zoom or accessibility audit.
 
+## Language-switch timing sample
+
+Twenty alternating language changes were measured in the same isolated Chrome profile, at **1440 × 1000** with **4× CPU throttling**, using the supplied six-finding case and its action-plan editor. The timer surrounds synchronous change handling, including the layout work it triggers; it does not measure GPU compositing or actual frame rate.
+
+| Observed sample | Median handler time | Longest handler time | Same form retained |
+|---|---:|---:|---:|
+| Version 0.5 before changes | 133.7 ms | 209.8 ms | 0 / 20 |
+| Final version 0.6 run | 24.1 ms | 38.1 ms | 20 / 20 |
+
+The final sample used warmed local fonts. An earlier development run included a 469 ms outlier, so these numbers are not a cold-start or device-wide guarantee. A separate 24-frame browser check found no empty or faded-out content after repeated switching. It samples DOM visibility, not the Codex embedded browser's native popup/GPU behaviour. Safari, Firefox and real mobile hardware remain untested.
+
 ## Published source checks
 
-The [GitHub Actions run](https://github.com/rayexzh/pharma-inspection-workbench/actions/runs/37292161191) passed on **5 October 2026** (Shanghai date), using **Node.js 24.21.0**: syntax checks succeeded and **59 tests passed, 0 failed**. It checked source commit `fcfaad4bc240f672ea48e526c72b034b93fbe3e2`. This confirms reproducible software checks on the published version, not GxP validation.
+Version 0.6 publication results will be recorded here after its GitHub Actions run completes.
 
 ## Visual references
 
