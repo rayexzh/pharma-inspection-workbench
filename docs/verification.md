@@ -30,7 +30,7 @@ Seven comparison tests cover pure previews, parity with save including reopening
 
 ## Browser checks
 
-A development harness used Chrome DevTools Protocol with an isolated **Headless Chrome 154** profile. The final runs passed **78 checks, 0 failed**: one first-use language check, 21 existing behaviour checks, 13 bilingual checks, nine guided-editing/creation checks, 12 overview/redesign checks 14 draft-recovery/guidance checks and eight change-comparison checks. No browser console errors or uncaught exceptions were observed.
+A development harness used Chrome DevTools Protocol with an isolated **Headless Chrome 154** profile. The final runs passed **78 checks, 0 failed**: one first-use language check, 21 existing behaviour checks, 13 bilingual checks, nine guided-editing/creation checks, 12 overview/redesign checks, 14 draft-recovery/guidance checks and eight change-comparison checks. No browser console errors or uncaught exceptions were observed.
 
 | Area | Observed result |
 |---|---|
@@ -56,7 +56,7 @@ The browser harness is a delivery-time check and is not included in GitHub Actio
 
 ## Published source checks
 
-The version 0.5 source checks will be recorded here after the published GitHub Actions run completes.
+The [GitHub Actions run](https://github.com/rayexzh/pharma-inspection-workbench/actions/runs/37292161191) passed on **5 October 2026** (Shanghai date), using **Node.js 24.21.0**: syntax checks succeeded and **59 tests passed, 0 failed**. It checked source commit `fcfaad4bc240f672ea48e526c72b034b93fbe3e2`. This confirms reproducible software checks on the published version, not GxP validation.
 
 ## Visual references
 
