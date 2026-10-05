@@ -94,6 +94,7 @@
     }
     if ($('#save-state')) $('#save-state').textContent = t(dirty?'Unsaved changes':'Saved');
     if ($('#discard-draft')) $('#discard-draft').disabled = !dirty;
+    if ($('#preview-changes')) $('#preview-changes').disabled = !dirty;
     const note = $('.workflow-strip small');
     if (note) note.textContent = t(dirty?'This workflow uses saved records; save your draft to update the checks.':'Demo reviews and closure depend on completeness, not verified regulatory acceptance.');
   }
@@ -308,6 +309,32 @@
   function textarea(name,label,value,hint = '',rows = 3) {
     return `<div class="field">${fieldTitle(name,label)}${hint?`<small id="hint-${name}">${t(hint)}</small>`:''}<textarea name="${name}" id="field-${name}" rows="${rows}" maxlength="10000" ${hint?`aria-describedby="hint-${name}"`:''}>${escape(value)}</textarea></div>`;
   }
+  const changeLabels = {title:'Finding title',severity:'Classification',area:'Quality area',description:'What was observed',status:'Action status',owner:'Action owner',dueDate:'Committed due date',rootCause:'Root cause investigation',impact:'Impact and scope assessment',interimAction:'Immediate / interim action',correctiveAction:'Corrective and preventive action',effectivenessPlan:'How effectiveness will be checked',effectivenessResult:'Effectiveness result',responseDraft:'Working response draft',evidenceIds:'Internal evidence references',sourceIds:'Regulatory source references'};
+  function changeValue(field,value) {
+    if (Array.isArray(value)) return value.length ? value.map(escape).join(' · ') : escape(t('No references selected'));
+    if (!value) return `<span class="empty-value">${t('Not recorded')}</span>`;
+    if (field === 'status' || field === 'severity') return escape(t(labels[value] || value));
+    return escape(value);
+  }
+  function changesMarkup(changes) {
+    return `<div class="change-list">${changes.map(item => `<section class="change-card"><h3>${escape(t(changeLabels[item.field] || item.field))}</h3><div class="change-pair"><div class="change-before"><span class="change-side-label">${t('Before')}</span><div class="change-value" data-record-text>${changeValue(item.field,item.before)}</div></div><div class="change-after"><span class="change-side-label">${t('After')}</span><div class="change-value" data-record-text>${changeValue(item.field,item.after)}</div></div></div></section>`).join('')}</div>`;
+  }
+  function previewDraft() {
+    captureDraft(); updateDraftStatus();
+    try {
+      const check = Core.previewChanges(dataset,selectedId,draft);
+      const consequence = check.reviewReset ? `<p class="comparison-consequence">${t('Saving these changes resets the previous review.')}${check.reopensClosed?' '+t('The closed finding will reopen.'):''}</p>` : '';
+      modal('Preview changes',`<p class="modal-copy comparison-note">${t('Comparison uses exact stored text. Display translations are not written into history.')}</p>${consequence}${check.changes.length ? changesMarkup(check.changes) : `<p class="empty-state">${t('No changes to save.')}</p>`}<div class="modal-actions"><button type="button" class="button" id="save-preview" ${check.changes.length?'':'disabled'}>${t('Save changes')}</button><button type="button" class="button secondary" id="continue-editing">${t('Keep editing')}</button></div>`);
+      $('#continue-editing').addEventListener('click',() => $('#modal').close());
+      $('#save-preview').addEventListener('click',() => { save(); if (!dirty) $('#modal').close(); });
+    } catch (error) { notify(error.message,true); }
+  }
+  function showHistoryChanges(index) {
+    const entry = currentFinding().history[index];
+    if (!entry?.changes?.length) return;
+    modal('Saved change comparison',`<p class="modal-copy" data-record-text>${escape(entry.actor)} · ${escape(entry.timestamp)}</p><p class="modal-copy comparison-note">${t('These are recorded before/after values. Browser history and imported snapshots are editable, not authenticated.')}</p>${changesMarkup(entry.changes)}`);
+  }
+
   function showGuidance(name) {
     const guide = Guidance.forField(name,language);
     if (!guide) return;
@@ -330,9 +357,9 @@
       body = '<p class="references-note">Keep the draft concise and specific. This is an internal working note, not a submission to MHRA.</p>' + textarea('responseDraft','Working response draft',finding.responseDraft,'Explain the action and its timeline. Completed-action evidence is retained internally unless requested.',9);
       const seedReviewer = Demo.dataset.findings.find(item => item.id === finding.id)?.review.reviewer;
       const displayedReviewer = language === 'zh-CN' && review.reviewer === seedReviewer ? Zh.historyActors[review.reviewer] || review.reviewer : review.reviewer;
-      body += `<div class="review-strip"><strong>${review.status === 'approved'?'Demo review recorded':'Awaiting demo review'}</strong>${review.status === 'approved'?` · <span data-record-text>${escape(displayedReviewer)}</span><br>${escape(review.reviewedAt)}`:'<br>Typed reviewer names are not authenticated signatures.'}</div><div class="form-divider"><p class="section-label">LOCAL CHANGE HISTORY</p><p class="references-note">Editable browser history for this demonstration; not a tamper-proof audit trail.</p><ol class="history-list" tabindex="-1">${finding.history.slice().reverse().map(record => I18n.history(record,Zh,language)).map(item => `<li data-record-text>${escape(item.action)}<span>${escape(item.actor)} · ${escape(item.timestamp)}</span></li>`).join('')}</ol></div>`;
+      body += `<div class="review-strip"><strong>${review.status === 'approved'?'Demo review recorded':'Awaiting demo review'}</strong>${review.status === 'approved'?` · <span data-record-text>${escape(displayedReviewer)}</span><br>${escape(review.reviewedAt)}`:'<br>Typed reviewer names are not authenticated signatures.'}</div><div class="form-divider"><p class="section-label">LOCAL CHANGE HISTORY</p><p class="references-note">Editable browser history for this demonstration; not a tamper-proof audit trail.</p><ol class="history-list" tabindex="-1">${finding.history.map((record,index) => ({...I18n.history(record,Zh,language),index})).reverse().map(item => `<li><div data-record-text>${escape(item.action)}<span>${escape(item.actor)} · ${escape(item.timestamp)}</span></div>${item.changes?.length ? `<button type="button" class="text-button" data-history-index="${item.index}">${t('View saved changes')} →</button>` : `<small class="history-no-comparison">${t('No field comparison was recorded for this entry.')}</small>`}</li>`).join('')}</ol></div>`;
     }
-    $('#detail-panel').innerHTML = `<div id="filter-context" class="draft-note" hidden></div><div class="detail-top"><div class="detail-identity"><span class="finding-id" data-record-text>${escape(finding.id)} · ${escape(finding.area)}</span>${badge(finding.status)}</div><h2 data-record-text>${escape(finding.title)}</h2><p class="finding-description" data-record-text>${escape(finding.description)}</p></div>${workflowMarkup(storedFinding)}<div class="tab-bar" role="tablist" aria-label="Finding details">${tabs.map(item => `<button type="button" class="tab${tab === item.id?' active':''}" id="tab-${item.id}" role="tab" aria-selected="${tab === item.id}" aria-controls="detail-body" tabindex="${tab === item.id?'0':'-1'}" data-tab="${item.id}">${item.label}</button>`).join('')}</div><form id="finding-form"><div class="detail-body" id="detail-body" role="tabpanel" aria-labelledby="tab-${tab}">${body}</div><div class="plan-footer"><button type="submit" id="save-finding" class="button">Save changes</button><button type="button" class="text-button" id="discard-draft" data-action="discard-draft">Discard draft</button><span class="save-state" id="save-state">${t(dirty?'Unsaved changes':'Saved')}</span><div class="secondary-actions"><button type="button" class="button secondary" id="approve-finding" data-action="approve">Record review</button><button type="button" class="button secondary" id="close-finding" data-action="close" ${finding.status === 'closed'?'disabled':''}>Close finding</button></div></div><p class="draft-status" id="draft-status" role="status" aria-live="polite" hidden></p></form>`;
+    $('#detail-panel').innerHTML = `<div id="filter-context" class="draft-note" hidden></div><div class="detail-top"><div class="detail-identity"><span class="finding-id" data-record-text>${escape(finding.id)} · ${escape(finding.area)}</span>${badge(finding.status)}</div><h2 data-record-text>${escape(finding.title)}</h2><p class="finding-description" data-record-text>${escape(finding.description)}</p></div>${workflowMarkup(storedFinding)}<div class="tab-bar" role="tablist" aria-label="Finding details">${tabs.map(item => `<button type="button" class="tab${tab === item.id?' active':''}" id="tab-${item.id}" role="tab" aria-selected="${tab === item.id}" aria-controls="detail-body" tabindex="${tab === item.id?'0':'-1'}" data-tab="${item.id}">${item.label}</button>`).join('')}</div><form id="finding-form"><div class="detail-body" id="detail-body" role="tabpanel" aria-labelledby="tab-${tab}">${body}</div><div class="plan-footer"><button type="submit" id="save-finding" class="button">Save changes</button><button type="button" class="button secondary" id="preview-changes" data-action="preview-changes">Preview changes</button><button type="button" class="text-button" id="discard-draft" data-action="discard-draft">Discard draft</button><span class="save-state" id="save-state">${t(dirty?'Unsaved changes':'Saved')}</span><div class="secondary-actions"><button type="button" class="button secondary" id="approve-finding" data-action="approve">Record review</button><button type="button" class="button secondary" id="close-finding" data-action="close" ${finding.status === 'closed'?'disabled':''}>Close finding</button></div></div><p class="draft-status" id="draft-status" role="status" aria-live="polite" hidden></p></form>`;
     $('#finding-form').addEventListener('submit', event => { event.preventDefault(); save(); });
     localize($('#detail-panel'));
     renderList();
@@ -587,6 +614,8 @@
     $('#finding-list').scrollIntoView({block:'nearest'});
   });
   $('#view-content').addEventListener('click',event => {
+    const historyChange = event.target.closest('[data-history-index]');
+    if (historyChange) { showHistoryChanges(Number(historyChange.dataset.historyIndex)); return; }
     const help = event.target.closest('[data-guidance]');
     if (help) { showGuidance(help.dataset.guidance); return; }
     const openView = event.target.closest('[data-open-view]');
@@ -604,6 +633,7 @@
     if (tabButton) { goToTab(tabButton.dataset.tab); return; }
     const button = event.target.closest('[data-action]');
     if (!button) return;
+    if (button.dataset.action === 'preview-changes') previewDraft();
     if (button.dataset.action === 'discard-draft') discardDraft();
     if (button.dataset.action === 'approve') approve();
     if (button.dataset.action === 'close') closeFinding();

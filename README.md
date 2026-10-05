@@ -38,7 +38,9 @@ Start on the work overview, then open **F-001**: try closing it and inspect the 
 
 Then open the complete, closed **F-003**. Clarify one relevant action explanation and save. This invalidates approval and reopens the record. Inspect it, record a new demo review and close it again.
 
-## Features in version 0.4
+## Features in version 0.5
+
+- **Change comparisons:** preview edited fields before saving, then view recorded before/after values in the local history. A reopened status is included; old entries without comparisons are labelled clearly.
 
 - **Work overview:** an ordered queue with a useful next action for each open finding.
 - **Clickable counts:** open, overdue, ready for demo review, and findings with evidence gaps.
@@ -56,6 +58,10 @@ The queue orders overdue work first, then work due on the review date, reference
 ![English finding editor](docs/screenshots/editor.png)
 
 [See the writing guide](docs/screenshots/guidance.png) · [See draft recovery](docs/screenshots/draft-recovery.png)
+
+Use **Preview changes** after editing F-003 to see exactly what will change and whether saving resets review. Preview does not save anything; you can keep editing or save from the preview. After saving, open **Response & history → View saved changes**. Comparisons keep the actual stored text, not its display translation. New JSON backups retain the comparisons and Markdown reports include them; CSV contains the current register. Open new backups with version 0.5 or later. These local snapshots are editable and are not an authenticated audit trail.
+
+[See a change preview](docs/screenshots/changes.png) · [See a saved comparison](docs/screenshots/saved-changes.png)
 
 A recovery copy is **not a saved finding**: it does not update counts, reviews, history or exports. Use **Save changes** to commit your edits. Restoring a draft also requires Save; discarding it keeps saved records intact. Editing an approved or closed finding resets its review only when you save a material change.
 

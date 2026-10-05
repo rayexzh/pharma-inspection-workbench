@@ -1,6 +1,6 @@
 # Verification record
 
-Observed on **5 October 2026** for version **0.4.0**. These checks concern software behaviour in a fictional case. They are not GxP validation, a regulatory assessment, a usability study or evidence of customer benefit.
+Observed on **5 October 2026** for version **0.5.0**. These checks concern software behaviour in a fictional case. They are not GxP validation, a regulatory assessment, a usability study or evidence of customer benefit.
 
 ## Reproducible code checks
 
@@ -18,7 +18,7 @@ node --check src/app.js
 node --test tests/*.test.cjs
 ```
 
-Observed with **Node.js 24.19.0**: syntax checks passed; **52 tests passed, 0 failed**.
+Observed with **Node.js 24.19.0**: syntax checks passed; **59 tests passed, 0 failed**.
 
 The tests cover required-field and reference checks, blocked premature closure, review invalidation and reopening after edits, strict date boundaries, import shape and duplicate/dangling-reference validation, CSV formula neutralisation, report scope, evidence-file parity, translations that preserve stored/custom text and approvals, and incomplete new-finding creation.
 
@@ -26,9 +26,11 @@ Eleven added tests cover transparent work ordering, overlapping focus filters, e
 
 Ten new draft tests cover canonical-record immutability, incomplete recoverable patches, exact text, stale case/finding/reference snapshots, strict envelope validation and browser-module parity. Six guidance tests cover all nine fields, language fallback, isolated return values, unknown keys, investigation uncertainty and planned versus completed checks. Guidance does not fill or assess a record.
 
+Seven comparison tests cover pure previews, parity with save including reopening, no-op preservation, exact multiline text and cloned references, JSON compatibility, escaped Markdown, strict snapshot imports and historical references.
+
 ## Browser checks
 
-A development harness used Chrome DevTools Protocol with an isolated **Headless Chrome 154** profile. The final runs passed **70 checks, 0 failed**: one first-use language check, 21 existing behaviour checks, 13 bilingual checks, nine guided-editing/creation checks, 12 overview/redesign checks and 14 draft-recovery/guidance checks. No browser console errors or uncaught exceptions were observed.
+A development harness used Chrome DevTools Protocol with an isolated **Headless Chrome 154** profile. The final runs passed **78 checks, 0 failed**: one first-use language check, 21 existing behaviour checks, 13 bilingual checks, nine guided-editing/creation checks, 12 overview/redesign checks 14 draft-recovery/guidance checks and eight change-comparison checks. No browser console errors or uncaught exceptions were observed.
 
 | Area | Observed result |
 |---|---|
@@ -42,6 +44,7 @@ A development harness used Chrome DevTools Protocol with an isolated **Headless 
 | Draft integrity | Cross-tab references and literal bilingual text restored; reverting edits removed the delta. Malformed and stale envelopes were rejected. Discard changed only the draft. |
 | Storage failure | Failed draft writes left current-tab edits available. Failed canonical writes retained the valid pre-save recovery copy, allowed session JSON export and did not claim browser persistence. A later edit/revert did not delete that backup. |
 | Writing guides | Nine field guides opened without submitting or filling the form; guidance kept uncommitted text intact and used the selected language. |
+| Change comparisons | Preview left canonical records unchanged, retained cross-tab drafts and showed review reset/reopening. Save recorded one event; read-only history, JSON round-trip, literal custom text, reference changes and bilingual responsive dialogs worked. Old entries had no invented snapshots. |
 | Review and closure | Incomplete review and closure were blocked. Material edits invalidated review and reopened closed records; named demo review and subsequent closure were exercised. |
 | Language | First-use Chinese, preference after reload, translated supplied records, exact imported/custom text, unchanged canonical JSON and no-op translated saves were checked. |
 | Exports/imports | JSON, CSV and Markdown downloads and a round-trip worked. Malformed, oversized and empty-finding JSON did not replace the workspace. |
@@ -49,11 +52,11 @@ A development harness used Chrome DevTools Protocol with an isolated **Headless 
 | Keyboard and dialogs | Detail-tab arrow/Home/End keys, field focus and narrow dialogs worked. |
 | Direct opening | The app also loaded from its local HTML file without a server. |
 
-The browser harness is a delivery-time check and is not included in GitHub Actions. The supplied workflow runs syntax checks and the 52 reproducible unit tests. Only the observed environment is covered; the viewport checks are not a complete zoom or accessibility audit.
+The browser harness is a delivery-time check and is not included in GitHub Actions. The supplied workflow runs syntax checks and the 59 reproducible unit tests. Only the observed environment is covered; the viewport checks are not a complete zoom or accessibility audit.
 
 ## Published source checks
 
-The [GitHub Actions run](https://github.com/rayexzh/pharma-inspection-workbench/actions/runs/37220210587) passed on **5 October 2026** (Shanghai date), using **Node.js 24.21.0**: syntax checks succeeded and **52 tests passed, 0 failed**. It checked source commit `1ce18512086c2d19b2fc0ecc090136b60ecaaebc`. This confirms reproducible software checks on the published version, not GxP validation.
+The version 0.5 source checks will be recorded here after the published GitHub Actions run completes.
 
 ## Visual references
 
@@ -69,6 +72,12 @@ The [GitHub Actions run](https://github.com/rayexzh/pharma-inspection-workbench/
 - [Chinese recovery banner](screenshots/draft-recovery-zh.png)
 - [English writing guide](screenshots/guidance.png)
 - [Chinese writing guide](screenshots/guidance-zh.png)
+
+- [English change preview](screenshots/changes.png)
+- [Chinese change preview](screenshots/changes-zh.png)
+- [English mobile change preview](screenshots/changes-mobile.png)
+- [Chinese mobile change preview](screenshots/changes-mobile-zh.png)
+- [Saved before/after comparison](screenshots/saved-changes.png)
 
 The screenshots show the supplied fictional case, writing guides and an uncommitted practice draft with the final interface. No patient, employer or live manufacturing data was used.
 

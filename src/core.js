@@ -38,10 +38,10 @@
   function validateDataset(value) {
     var errors = [];
     function error(path, message) { errors.push(path + ': ' + message); }
-    function shape(item, path, keys) {
+    function shape(item, path, keys, optional) {
       if (!record(item)) { error(path, 'must be an object'); return false; }
       Object.keys(item).forEach(function (key) {
-        if (keys.indexOf(key) < 0) error(path + '.' + key, 'unexpected property');
+        if (keys.indexOf(key) < 0 && (!optional || optional.indexOf(key) < 0)) error(path + '.' + key, 'unexpected property');
       });
       keys.forEach(function (key) {
         if (!Object.prototype.hasOwnProperty.call(item, key)) error(path + '.' + key, 'is required');
@@ -132,9 +132,32 @@
       }
       if (array(item, 'history', path, 10000)) item.history.forEach(function (entry, historyIndex) {
         var historyPath = path + '.history[' + historyIndex + ']';
-        if (!shape(entry, historyPath, ['timestamp', 'actor', 'action'])) return;
+        if (!shape(entry, historyPath, ['timestamp', 'actor', 'action'], ['changes'])) return;
         ['timestamp', 'actor', 'action'].forEach(function (key) { string(entry, key, historyPath, true); });
         if (!timestampValid(entry.timestamp)) error(historyPath + '.timestamp', 'must be an explicit ISO timestamp');
+        if (Object.prototype.hasOwnProperty.call(entry, 'changes')) {
+          if (!array(entry, 'changes', historyPath, EDITABLE.length)) return;
+          if (!entry.changes.length) error(historyPath + '.changes', 'must contain at least one changed field');
+          var fields = new Set();
+          entry.changes.forEach(function (change, changeIndex) {
+            var changePath = historyPath + '.changes[' + changeIndex + ']';
+            if (!shape(change, changePath, ['field', 'before', 'after'])) return;
+            if (EDITABLE.indexOf(change.field) < 0) { error(changePath + '.field', 'must be an editable finding field'); return; }
+            if (fields.has(change.field)) error(changePath + '.field', 'duplicate changed field');
+            fields.add(change.field);
+            ['before', 'after'].forEach(function (side) {
+              var snapshot = change[side];
+              if (change.field === 'evidenceIds' || change.field === 'sourceIds') {
+                // Historical links need not still exist in the current register.
+                if (!Array.isArray(snapshot) || snapshot.length > 1000 || snapshot.some(function (id) { return typeof id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/.test(id); }) || new Set(snapshot).size !== snapshot.length) error(changePath + '.' + side, 'must contain unique simple reference IDs');
+              } else if (typeof snapshot !== 'string' || snapshot.length > 20000) error(changePath + '.' + side, 'must be text up to 20,000 characters');
+              else if (change.field === 'dueDate' && snapshot !== '' && !dateValid(snapshot)) error(changePath + '.' + side, 'must be blank or a real date');
+              else if (change.field === 'status' && ['open', 'in_progress', 'closed'].indexOf(snapshot) < 0) error(changePath + '.' + side, 'invalid finding status');
+              else if (change.field === 'severity' && ['major', 'other'].indexOf(snapshot) < 0) error(changePath + '.' + side, 'invalid classification');
+            });
+            if (JSON.stringify(change.before) === JSON.stringify(change.after)) error(changePath, 'before and after must differ');
+          });
+        }
       });
     });
     // Imports must not claim an internally approved or closed state that contradicts the
@@ -233,8 +256,10 @@
     if (Date.parse(timestamp) < newest) throw new Error('Timestamp must not be earlier than the existing history or review.');
     return { dataset: next, finding: finding, actor: actor.trim(), timestamp: timestamp };
   }
-  function append(context, action) {
-    context.finding.history.push({ timestamp: context.timestamp, actor: context.actor, action: action });
+  function append(context, action, changes) {
+    var entry = { timestamp: context.timestamp, actor: context.actor, action: action };
+    if (changes && changes.length) entry.changes = clone(changes);
+    context.finding.history.push(entry);
     ensureDataset(context.dataset);
     return context.dataset;
   }
@@ -248,13 +273,36 @@
     if (patch.status === 'closed' && finding.status !== 'closed') throw new Error('Use closeFinding to close a finding after all checks pass.');
     var changed = Object.keys(patch).filter(function (key) { return JSON.stringify(finding[key]) !== JSON.stringify(patch[key]); });
     if (!changed.length) return context.dataset;
+    var before = clone(finding);
     changed.forEach(function (key) { finding[key] = clone(patch[key]); });
     var wasApproved = finding.review.status === 'approved';
     finding.review = { status: 'pending', reviewer: '', reviewedAt: '' };
     // Every editable field affects the scope, commitment, evidence or response being reviewed.
     if (finding.status === 'closed') finding.status = 'in_progress';
     ensureDataset(context.dataset);
-    return append(context, 'Edited ' + changed.join(', ') + (wasApproved ? '; previous technical approval reset' : '') + '.');
+    return append(context, 'Edited ' + changed.join(', ') + (wasApproved ? '; previous technical approval reset' : '') + '.', compareFields(before, finding));
+  }
+  function compareFields(before, after) {
+    return EDITABLE.filter(function (key) { return JSON.stringify(before[key]) !== JSON.stringify(after[key]); }).map(function (key) {
+      return { field: key, before: clone(before[key]), after: clone(after[key]) };
+    });
+  }
+  function previewChanges(dataset, id, patch) {
+    ensureDataset(dataset);
+    if (!record(patch)) throw new Error('A patch object is required.');
+    Object.keys(patch).forEach(function (key) { if (EDITABLE.indexOf(key) < 0) throw new Error('Field cannot be edited through saveFinding: ' + key); });
+    var next = clone(dataset);
+    var finding = next.findings.find(function (item) { return item.id === id; });
+    if (!finding) throw new Error('Unknown finding: ' + String(id));
+    var before = clone(finding);
+    if (patch.status === 'closed' && finding.status !== 'closed') throw new Error('Use closeFinding to close a finding after all checks pass.');
+    Object.keys(patch).forEach(function (key) { finding[key] = clone(patch[key]); });
+    var changes = compareFields(before, finding);
+    if (!changes.length) return { changes: [], reviewReset: false, reopensClosed: false };
+    finding.review = { status: 'pending', reviewer: '', reviewedAt: '' };
+    if (finding.status === 'closed') finding.status = 'in_progress';
+    ensureDataset(next);
+    return { changes: compareFields(before, finding), reviewReset: before.review.status === 'approved', reopensClosed: before.status === 'closed' && finding.status !== 'closed' };
   }
   function approveFinding(dataset, id, reviewer, timestamp) {
     var context = transition(dataset, id, reviewer, timestamp);
@@ -353,12 +401,18 @@
       if (!check.issues.length) lines.push('- No outstanding prototype checks. A qualified person still needs to assess adequacy and applicability.');
       check.issues.forEach(function (issue) { lines.push('- ' + md(issue.label) + ': ' + md(issue.detail)); });
       lines.push('', '### Local activity history', '');
-      finding.history.forEach(function (entry) { lines.push('- ' + entry.timestamp + ' — ' + md(entry.actor) + ': ' + md(entry.action)); });
+      finding.history.forEach(function (entry) {
+        lines.push('- ' + entry.timestamp + ' — ' + md(entry.actor) + ': ' + md(entry.action));
+        if (entry.changes) entry.changes.forEach(function (change) {
+          function snapshot(value) { return md(Array.isArray(value) ? value.join('; ') || 'No references' : value || 'Not recorded'); }
+          lines.push('  - ' + md(change.field), '    - Before: ' + snapshot(change.before).replace(/\n/g, '\n      '), '    - After: ' + snapshot(change.after).replace(/\n/g, '\n      '));
+        });
+      });
       if (!finding.history.length) lines.push('- No history recorded.');
       lines.push('');
     });
     return lines.join('\n') + '\n';
   }
 
-  return { clone: clone, validateDataset: validateDataset, evaluateFinding: evaluateFinding, summarise: summarise, saveFinding: saveFinding, addFinding: addFinding, approveFinding: approveFinding, closeFinding: closeFinding, csvExport: csvExport, markdownReport: markdownReport };
+  return { clone: clone, validateDataset: validateDataset, evaluateFinding: evaluateFinding, summarise: summarise, saveFinding: saveFinding, previewChanges: previewChanges, addFinding: addFinding, approveFinding: approveFinding, closeFinding: closeFinding, csvExport: csvExport, markdownReport: markdownReport };
 });

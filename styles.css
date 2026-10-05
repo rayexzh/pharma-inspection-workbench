@@ -328,6 +328,27 @@ dialog::backdrop { background: #1b302c70; }
 .purpose-strip span { color: var(--muted); margin-top: 3px; }
 :lang(zh-CN) h1, :lang(zh-CN) h2, :lang(zh-CN) .eyebrow, :lang(zh-CN) .mini-label, :lang(zh-CN) .nav-label, :lang(zh-CN) .brand-sub, :lang(zh-CN) .section-label { letter-spacing: 0; }
 
+/* Read-only comparisons use literal stored values, including multiline text. */
+.comparison-note { margin-bottom: 14px; }
+.comparison-consequence { padding: 10px 12px; margin-bottom: 14px; border-left: 3px solid #b08027; background: #faf5e9; color: #705018; font-size: 12px; line-height: 1.7; }
+.change-list { display: grid; gap: 14px; }
+.change-card { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-small); overflow: hidden; }
+.change-card h3 { padding: 9px 12px; background: #f4f7f5; border-bottom: 1px solid var(--line); font-size: 12px; }
+.change-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.change-pair > div { min-width: 0; padding: 12px; }
+.change-before { border-right: 1px solid var(--line); background: #fafafa; }
+.change-after { background: #f0f7f3; }
+.change-side-label { display: block; color: var(--muted); font-size: 10px; font-weight: 600; margin-bottom: 6px; }
+.change-value { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.75; max-height: 280px; overflow-y: auto; }
+.empty-value, .history-no-comparison { color: var(--muted); font-size: 10px; }
+.history-no-comparison { display: block; margin-top: 5px; }
+@media (max-width:540px) {
+  .change-pair { grid-template-columns: minmax(0,1fr); }
+  .change-before { border-right: 0; border-bottom: 1px solid var(--line); }
+  .change-value { max-height: 220px; }
+  .comparison-consequence { font-size: 11px; }
+}
+
 /* Reflow: navigation scroll stays inside its own container. */
 @media (min-width: 1600px) {
   .workbench { grid-template-columns: minmax(315px, .67fr) minmax(0, 1.33fr); }

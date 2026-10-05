@@ -23,7 +23,7 @@ These are project acceptance criteria. They are not an exhaustive regulatory req
 
 ## Method
 
-The implementation uses dependency-free browser files and deterministic JavaScript checks. It stores demo edits locally, appends events to a local change log during normal interface use and supports internal CSV, JSON and Markdown exports. The log does not retain prior-value snapshots. Import validation checks data shape and permitted values; it cannot establish whether a record is factually true.
+The implementation uses dependency-free browser files and deterministic JavaScript checks. It stores demo edits locally, appends events to a local change log during normal interface use and supports internal CSV, JSON and Markdown exports. New saved edits retain before/after field snapshots, including automatic reopening; older events without snapshots remain readable and are not reconstructed. Import validation checks data shape and permitted values; it cannot establish whether a record is factually true.
 
 The design separates source references from evidence references. A public guidance link explains why a topic matters. An internal record reference identifies material that a fictional team would review. Neither is proof that a finding has been resolved.
 
@@ -80,3 +80,9 @@ Nine field-specific English/Chinese writing guides provide questions about owner
 Uncommitted edits have a separate browser recovery envelope when storage is available. Reload offers Restore or Discard; recovery does not alter the saved finding, reviewer, history, queue or exports. Save uses the existing canonical transition and invalidates prior review once when appropriate. The envelope is strictly validated and compared with the case, selected finding and evidence/source snapshots. Its bounded fingerprint detects accidental staleness and is not an authenticated signature.
 
 Only one active finding draft is retained. Reverting edits to the original displayed value removes the draft delta. Unchanged checkbox selections preserve stored ID order. Drafts with changed base records are rejected. A failed canonical storage write retains the last valid recovery envelope, keeps session exports available and reports the storage limitation. A recovery copy is not a validated audit record or a guaranteed backup.
+
+## Change preview and saved comparisons (version 0.5.0)
+
+An optional preview applies the same save rules to a copy of the saved finding. It shows exact stored field values, changed reference IDs and an automatic reopened status when applicable. It does not commit the draft, reset review or append a history event. Save remains available directly.
+
+A material save appends one event with cloned before/after values for its changed editable fields. An unchanged save adds no event. JSON retains these snapshots and Markdown includes them; CSV remains a current-register export. Old version-1 backups remain readable, but older app versions cannot read the new optional history field. The comparison does not reconstruct absent history, analyse the quality of a change or authenticate its author or contents.
